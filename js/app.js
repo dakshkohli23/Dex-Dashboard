@@ -961,41 +961,144 @@ async function deleteTool(id, projectId) {
    ============================================================ */
 async function openUserModal(userId) {
   let user = userId ? STATE.users.find(u=>u.id===userId) : null;
-  showModal(`<div class="modal modal-sm">
+  showModal(`<div class="modal modal-md">
     <div class="modal-header">
-      <h2 class="modal-title">${user?'Edit Role':'Invite User'}</h2>
+      <h2 class="modal-title">${user ? 'Edit User' : 'Create New User'}</h2>
       <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body"><div class="form-section">
-      ${user?`
-        <div class="flex items-center gap-3 mb-2">
-          <div class="s-avatar" style="width:38px;height:38px">${getInitials(user.name)}</div>
-          <div><div class="font-semibold">${esc(user.name)}</div><div class="text-secondary text-sm">${user.email}</div></div>
+      ${user ? `
+        <div class="flex items-center gap-3 p-3 card mb-4">
+          <div class="s-avatar" style="width:42px;height:42px;font-size:.85rem">${getInitials(user.name)}</div>
+          <div>
+            <div class="font-semibold">${esc(user.name)}</div>
+            <div class="text-secondary text-sm">${esc(user.email)}</div>
+          </div>
+          <span class="role-badge ${roleBadge(user.role)} ml-auto">${formatRole(user.role)}</span>
         </div>
-        <div class="form-group"><label class="form-label">Role</label>
+        <div class="form-group">
+          <label class="form-label">Change Role</label>
           <select class="form-input form-select" id="u-role">
             <option value="member" ${user.role==='member'?'selected':''}>Member</option>
             <option value="admin" ${user.role==='admin'?'selected':''}>Admin</option>
             <option value="super_admin" ${user.role==='super_admin'?'selected':''}>Super Admin</option>
           </select>
-        </div>` : `
-        <div class="alert alert-info mb-3"><i class="fas fa-info-circle"></i> <span>Users are created when they first log in. Share your app URL so they can sign up via Google.</span></div>
-        <div class="form-group"><label class="form-label">Email (for reference)</label>
-          <input type="email" class="form-input" id="u-email" placeholder="team@company.com">
-        </div>`}
+        </div>
+        <div class="alert alert-info mt-3">
+          <i class="fas fa-info-circle"></i>
+          <span>Clicking <strong>Reset Password</strong> sends a reset email to <strong>${esc(user.email)}</strong>.</span>
+        </div>
+      ` : `
+        <div class="form-group">
+          <label class="form-label">Full Name <span class="form-req">*</span></label>
+          <input type="text" class="form-input" id="u-name" placeholder="John Smith">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address <span class="form-req">*</span></label>
+          <input type="email" class="form-input" id="u-email" placeholder="john@company.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password <span class="form-req">*</span></label>
+          <div class="input-wrap">
+            <input type="password" class="form-input" id="u-password" placeholder="Minimum 6 characters">
+            <button type="button" class="pwd-toggle" onclick="togglePwd('u-password')"><i class="fas fa-eye"></i></button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <select class="form-input form-select" id="u-role">
+            <option value="member">Member</option>
+            <option value="admin">Admin</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+        </div>
+      `}
     </div></div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      ${user?`<button class="btn btn-primary" onclick="saveUserRole('${userId}')"><i class="fas fa-save"></i> Save Role</button>`
-             :`<button class="btn btn-primary" onclick="closeModal()"><i class="fas fa-check"></i> Got it</button>`}
+      ${user ? `
+        <button class="btn btn-outline mr-auto" onclick="resetUserPassword('${esc(user.email)}')">
+          <i class="fas fa-key"></i> Reset Password
+        </button>
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUserRole('${userId}')">
+          <i class="fas fa-save"></i> Save Role
+        </button>
+      ` : `
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="createUser()">
+          <i class="fas fa-user-plus"></i> Create User
+        </button>
+      `}
     </div>
   </div>`);
 }
 
+async function createUser() {
+  const name     = val('u-name')?.trim();
+  const email    = val('u-email')?.trim();
+  const password = document.getElementById('u-password')?.value;
+  const role     = val('u-role') || 'member';
+
+  if (!name)     { showToast('Full name is required', 'error'); return; }
+  if (!email)    { showToast('Email is required', 'error'); return; }
+  if (!password) { showToast('Password is required', 'error'); return; }
+  if (password.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
+
+  const btn = document.querySelector('.modal-footer .btn-primary');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating…'; }
+
+  try {
+    // Use a secondary Firebase app so current user stays logged in
+    let secondaryApp;
+    try { secondaryApp = firebase.app('user-creator'); }
+    catch(e) { secondaryApp = firebase.initializeApp(firebaseConfig, 'user-creator'); }
+
+    const secondaryAuth = secondaryApp.auth();
+    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+    const newUid = cred.user.uid;
+    await secondaryAuth.signOut();
+
+    // Save user profile in Firestore
+    await db.collection('users').doc(newUid).set({
+      uid:      newUid,
+      name,
+      email,
+      photoURL: null,
+      role,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastLogin: null,
+    });
+
+    STATE.users = await DB.getUsers();
+    showToast(`User "${name}" created successfully!`, 'success');
+    closeModal();
+    renderUsers();
+  } catch(e) {
+    const msg = getAuthErrorMessage(e.code);
+    showToast(msg, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-user-plus"></i> Create User'; }
+  }
+}
+
+async function resetUserPassword(email) {
+  if (!confirm(`Send password reset email to ${email}?`)) return;
+  try {
+    await auth.sendPasswordResetEmail(email);
+    showToast(`Reset email sent to ${email}`, 'success');
+  } catch(e) {
+    showToast('Failed to send reset email: ' + e.message, 'error');
+  }
+}
+
 async function saveUserRole(uid) {
   const role = val('u-role');
-  try { await DB.updateUser(uid,{role}); STATE.users=await DB.getUsers(); showToast('Role updated!','success'); closeModal(); renderUsers(); }
-  catch(e) { showToast('Failed','error'); }
+  try {
+    await DB.updateUser(uid, { role });
+    STATE.users = await DB.getUsers();
+    showToast('Role updated!', 'success');
+    closeModal();
+    renderUsers();
+  } catch(e) { showToast('Failed to update role', 'error'); }
 }
 
 /* ============================================================
