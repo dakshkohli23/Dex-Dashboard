@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProjectOS — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- ========================= SIDEBAR ========================= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon"><i class="fas fa-layer-group"></i></div>
+      <span class="logo-text">ProjectOS</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-item active" data-route="dashboard" onclick="navigate('dashboard')">
+          <i class="fas fa-home nav-icon"></i> Dashboard
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">Projects</span>
+        <div class="nav-item" data-route="projects" onclick="navigate('projects')">
+          <i class="fas fa-folder nav-icon"></i> All Projects
+        </div>
+        <div class="nav-item" data-route="projects/seo" onclick="navigate('projects/seo')">
+          <i class="fas fa-search nav-icon"></i> SEO Projects
+        </div>
+        <div class="nav-item" data-route="projects/google_ads" onclick="navigate('projects/google_ads')">
+          <svg class="nav-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:middle">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg> Google Ads
+        </div>
+        <div class="nav-item" data-route="projects/meta_ads" onclick="navigate('projects/meta_ads')">
+          <i class="fab fa-meta nav-icon" style="color:#1877f2"></i> Meta Ads
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">Work</span>
+        <div class="nav-item" data-route="tasks" onclick="navigate('tasks')">
+          <i class="fas fa-tasks nav-icon"></i> Tasks
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">Team</span>
+        <div class="nav-item" data-route="users" onclick="navigate('users')">
+          <i class="fas fa-users nav-icon"></i> Users
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">Manage</span>
+        <div class="nav-item" data-route="credentials" onclick="navigate('credentials')">
+          <i class="fas fa-key nav-icon"></i> Credentials
+        </div>
+        <div class="nav-item" data-route="settings" onclick="navigate('settings')">
+          <i class="fas fa-cog nav-icon"></i> Settings
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="sidebar-user" onclick="navigate('settings')">
+        <div class="s-avatar" id="sidebar-avatar">U</div>
+        <div class="s-info">
+          <div class="s-name" id="sidebar-name">Loading...</div>
+          <div class="s-role" id="sidebar-role">Member</div>
+        </div>
+        <button class="s-logout" onclick="event.stopPropagation();handleSignOut()" title="Sign Out">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========================= MAIN ========================= -->
+  <div class="main-wrapper">
+
+    <!-- TOP HEADER -->
+    <header class="top-header">
+      <div class="header-left">
+        <button class="sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+        <span class="page-breadcrumb" id="page-title">Dashboard</span>
+      </div>
+      <div class="header-search">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search projects, tasks..." id="global-search" oninput="handleGlobalSearch(this.value)">
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="openProjectModal()" title="New Project">
+          <i class="fas fa-plus"></i>
+        </button>
+        <button class="icon-btn" title="Notifications">
+          <i class="fas fa-bell"></i>
+          <span class="notif-dot"></span>
+        </button>
+        <div class="h-user" onclick="navigate('settings')">
+          <div class="h-avatar" id="header-avatar">U</div>
+          <span class="h-uname" id="header-name">User</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="content-area" id="content-area">
+      <div style="display:flex;align-items:center;justify-content:center;height:100%">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- MODAL CONTAINER -->
+<div id="modal-container"></div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/db.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
