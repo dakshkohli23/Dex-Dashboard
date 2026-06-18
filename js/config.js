@@ -19,4 +19,3 @@ firebase.initializeApp(firebaseConfig);
 // Firestore + Auth instances (used globally)
 const db   = firebase.firestore();
 const auth = firebase.auth();
-const googleProvider = new firebase.auth.GoogleAuthProvider();
