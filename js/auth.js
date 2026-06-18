@@ -6,10 +6,6 @@ function signIn(email, password) {
   return auth.signInWithEmailAndPassword(email, password);
 }
 
-function signInWithGoogle() {
-  return auth.signInWithPopup(googleProvider);
-}
-
 function signOut() {
   return auth.signOut();
 }
