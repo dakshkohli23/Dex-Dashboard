@@ -455,7 +455,7 @@ async function renderUsers() {
   html('content-area',`
     <div class="page-header">
       <div><h1 class="page-title">Users</h1><p class="page-subtitle">${users.length} team member${users.length!==1?'s':''}</p></div>
-      <div class="page-actions"><button class="btn btn-primary" onclick="openUserModal()"><i class="fas fa-user-plus"></i> Invite User</button></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="openUserModal()"><i class="fas fa-user-plus"></i> Create User</button></div>
     </div>
     <div class="section-card">
       ${users.length?`<div class="table-wrap"><table class="data-table"><thead><tr>
