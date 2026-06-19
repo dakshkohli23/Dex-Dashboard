@@ -78,12 +78,17 @@ STATE.dashFilter = STATE.dashFilter || 'all';
 async function renderDashboard() {
   html('content-area', skelGrid());
   const [stats, projects, users] = await Promise.all([DB.getStats(), DB.getProjects(), DB.getUsers()]);
-  STATE.projects = projects;
-  STATE.users = users;
+  STATE.projects  = projects;
+  STATE.users     = users;
+  STATE.lastStats = stats;          // cache so toggle re-uses without refetch
   renderDashboardContent(stats, projects);
 }
 
 function renderDashboardContent(stats, projects) {
+  // Use cached stats if stats is null (e.g. called from toggle)
+  if (stats) STATE.lastStats = stats;
+  stats = STATE.lastStats || { total:0, notStarted:0, inProgress:0, onHold:0, completed:0, seo:0, googleAds:0, metaAds:0 };
+  if (!projects || !projects.length) projects = STATE.projects || [];
   // Filter for toggle
   let filtered = [...projects];
   if (STATE.dashFilter === 'active')   filtered = projects.filter(p => p.status === 'in_progress' || p.status === 'not_started');
@@ -138,9 +143,8 @@ function setDashFilter(filter, btn) {
   STATE.dashFilter = filter;
   document.querySelectorAll('.dash-ftab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  renderDashboardContent(null, STATE.projects);
-  // Re-fetch stats only when needed
-  DB.getStats().then(stats => renderDashboardContent(stats, STATE.projects));
+  // Use cached stats — renderDashboardContent now guards against null
+  renderDashboardContent(STATE.lastStats, STATE.projects);
 }
 
 /* ============================================================
@@ -643,6 +647,24 @@ async function openProjectModal(projectId, preType) {
           <label class="form-label">Project Name <span class="form-req">*</span></label>
           <input type="text" class="form-input" id="p-name" placeholder="e.g. Client Website SEO" value="${esc(project?.name||'')}">
         </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Client / Owner Name <span class="form-req">*</span>
+              <span style="font-weight:400;color:var(--text3)">(manual)</span>
+            </label>
+            <input type="text" class="form-input" id="p-client"
+              placeholder="e.g. Acme Corp or John Smith"
+              value="${esc(project?.clientName||'')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Keywords
+              <span style="font-weight:400;color:var(--text3)">(comma separated)</span>
+            </label>
+            <input type="text" class="form-input" id="p-keywords"
+              placeholder="seo audit, backlinks, content…"
+              value="${esc(project?.targetKeywords||'')}">
+          </div>
+        </div>
         <div class="form-group">
           <label class="form-label">Description</label>
           <textarea class="form-input form-textarea" id="p-desc" placeholder="Brief description…">${esc(project?.description||'')}</textarea>
@@ -662,7 +684,7 @@ async function openProjectModal(projectId, preType) {
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Project Owner</label>
+          <label class="form-label">Assign To <span style="font-weight:400;color:var(--text3)">(team member)</span></label>
           <select class="form-input form-select" id="p-owner"><option value="">Unassigned</option>${uOptions}</select>
         </div>
       </div>
@@ -748,11 +770,20 @@ async function saveProject(projectId) {
   anKeys.forEach(k=>{ analytics[k]=document.getElementById(`an-${k}`)?.checked||false; });
 
   const data = {
-    name, description: val('p-desc')||'', type: val('p-type')||'general',
-    priority: val('p-priority')||'medium', status: val('p-status')||'not_started',
-    ownerId: val('p-owner')||null, teamMembers: members,
-    notes: val('p-notes')||'', startDate: val('p-start')||null,
-    endDate: val('p-end')||null, closedAt: val('p-close')||null, ...analytics,
+    name,
+    clientName:     val('p-client')     || null,
+    targetKeywords: val('p-keywords')   || null,
+    description:    val('p-desc')       || null,
+    type:           val('p-type')       || 'general',
+    priority:       val('p-priority')   || 'medium',
+    status:         val('p-status')     || 'not_started',
+    ownerId:        val('p-owner')      || null,
+    teamMembers:    members,
+    notes:          val('p-notes')      || null,
+    startDate:      val('p-start')      || null,
+    endDate:        val('p-end')        || null,
+    closedAt:       val('p-close')      || null,
+    ...analytics,
   };
 
   try {
@@ -1202,25 +1233,91 @@ async function chStatus(projectId, status) {
 
 async function confirmDeleteProject(projectId) {
   closeDropdowns();
+  const project = STATE.projects.find(p=>p.id===projectId) || await DB.getProject(projectId);
+  if (!project) return;
+  // STEP 1 — Are you sure?
   showModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h2 class="modal-title">Delete Project</h2>
+    <div class="modal-header">
+      <h2 class="modal-title" style="color:var(--danger)"><i class="fas fa-triangle-exclamation"></i> Delete Project</h2>
       <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
-      <div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i>
-        <span>This will permanently delete the project and all its tasks. This cannot be undone.</span>
+      <div class="alert alert-danger mb-4">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div>You are about to delete <strong>"${esc(project.name)}"</strong>.
+          This will permanently remove the project and <strong>all its tasks</strong>. This cannot be undone.</div>
+      </div>
+      <div style="background:var(--bg);border-radius:var(--r-md);padding:12px 14px;font-size:.875rem;color:var(--text2)">
+        <i class="fas fa-info-circle text-brand"></i>
+        You will be asked to type the project name to confirm.
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger" onclick="doDeleteProject('${projectId}')"><i class="fas fa-trash"></i> Delete Forever</button>
+      <button class="btn btn-danger" onclick="deleteStep2('${projectId}','${esc(project.name).replace(/'/g,"\\'")}')" >
+        <i class="fas fa-chevron-right"></i> Continue
+      </button>
     </div>
   </div>`);
 }
 
+function deleteStep2(projectId, projectName) {
+  // STEP 2 — Type project name to confirm
+  showModal(`<div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title" style="color:var(--danger)"><i class="fas fa-triangle-exclamation"></i> Confirm Deletion</h2>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-danger mb-4">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>Type the project name exactly to confirm:</span>
+      </div>
+      <div style="background:var(--bg);padding:10px 14px;border-radius:var(--r-md);font-weight:700;
+        font-size:.95rem;color:var(--text);margin-bottom:14px;border-left:3px solid var(--danger)">
+        ${esc(projectName)}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type project name to confirm</label>
+        <input type="text" id="del-confirm-input" class="form-input"
+          placeholder="${esc(projectName)}"
+          oninput="checkDeleteName('${esc(projectName).replace(/'/g,"\\'")}')"
+          autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="confirmDeleteProject('${projectId}')">
+        <i class="fas fa-chevron-left"></i> Back
+      </button>
+      <button class="btn btn-danger" id="final-del-btn" disabled onclick="doDeleteProject('${projectId}')">
+        <i class="fas fa-trash"></i> Delete Forever
+      </button>
+    </div>
+  </div>`);
+}
+
+function checkDeleteName(projectName) {
+  const input = document.getElementById('del-confirm-input');
+  const btn   = document.getElementById('final-del-btn');
+  if (!input || !btn) return;
+  const match = input.value.trim() === projectName.trim();
+  btn.disabled = !match;
+  btn.style.opacity = match ? '1' : '0.5';
+}
+
 async function doDeleteProject(id) {
-  try { await DB.deleteProject(id); showToast('Project deleted','success'); closeModal(); navigate('projects'); }
-  catch(e) { showToast('Failed: '+e.message,'error'); }
+  const btn = document.getElementById('final-del-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting…'; }
+  try {
+    await DB.deleteProject(id);
+    showToast('Project deleted successfully', 'success');
+    closeModal();
+    STATE.projects = STATE.projects.filter(p => p.id !== id);
+    navigate('projects');
+  } catch(e) {
+    showToast('Failed: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i> Delete Forever'; }
+  }
 }
 
 /* ============================================================
