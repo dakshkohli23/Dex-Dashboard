@@ -73,44 +73,74 @@ function setTitle(t) {
 /* ============================================================
    VIEW: DASHBOARD
    ============================================================ */
+STATE.dashFilter = STATE.dashFilter || 'all';
+
 async function renderDashboard() {
   html('content-area', skelGrid());
-  const [stats, projects] = await Promise.all([DB.getStats(), DB.getProjects()]);
+  const [stats, projects, users] = await Promise.all([DB.getStats(), DB.getProjects(), DB.getUsers()]);
   STATE.projects = projects;
-  const recent = projects.slice(0,6);
+  STATE.users = users;
+  renderDashboardContent(stats, projects);
+}
+
+function renderDashboardContent(stats, projects) {
+  // Filter for toggle
+  let filtered = [...projects];
+  if (STATE.dashFilter === 'active')   filtered = projects.filter(p => p.status === 'in_progress' || p.status === 'not_started');
+  if (STATE.dashFilter === 'inactive') filtered = projects.filter(p => p.status === 'on_hold' || p.status === 'completed');
+  const recent = filtered.slice(0, 8);
 
   html('content-area', `
     <div class="page-header">
       <div><h1 class="page-title">Dashboard</h1><p class="page-subtitle">Project overview &amp; quick stats</p></div>
-      <div class="page-actions"><button class="btn btn-primary" onclick="openProjectModal()"><i class="fas fa-plus"></i> New Project</button></div>
+      <div class="page-actions">
+        <div class="dash-filter-wrap">
+          <button class="dash-ftab ${STATE.dashFilter==='all'?'active':''}" onclick="setDashFilter('all',this)">All</button>
+          <button class="dash-ftab ${STATE.dashFilter==='active'?'active':''}" onclick="setDashFilter('active',this)">Active</button>
+          <button class="dash-ftab ${STATE.dashFilter==='inactive'?'active':''}" onclick="setDashFilter('inactive',this)">Inactive</button>
+        </div>
+        <button class="btn btn-primary" onclick="openProjectModal()"><i class="fas fa-plus"></i> New Project</button>
+      </div>
     </div>
 
     <div class="stats-grid">
-      ${sc('folder','Total Projects', stats.total||0,'ico-total')}
-      ${sc('circle-dot','In Progress', stats.inProgress||0,'ico-progress')}
-      ${sc('pause-circle','On Hold', stats.onHold||0,'ico-hold')}
-      ${sc('check-circle','Completed', stats.completed||0,'ico-done')}
+      ${gradSc('folder','Total Projects', stats.total||0,'grad-purple')}
+      ${gradSc('circle-dot','In Progress', stats.inProgress||0,'grad-blue')}
+      ${gradSc('pause-circle','On Hold', stats.onHold||0,'grad-orange')}
+      ${gradSc('check-circle','Completed', stats.completed||0,'grad-green')}
     </div>
 
     <div class="grid-3 mb-4">
-      ${tc('search','SEO Projects',stats.seo||0,'#projects/seo','b-seo','var(--type-seo)')}
-      ${tc('g','Google Ads',stats.googleAds||0,'#projects/google_ads','b-google-ads','var(--type-gads)')}
-      ${tc('m','Meta Ads',stats.metaAds||0,'#projects/meta_ads','b-meta-ads','var(--type-mads)')}
+      ${tcNew('search','SEO',stats.seo||0,'projects/seo','#059669','#d1fae5')}
+      ${tcNew('fab fa-google','Google Ads',stats.googleAds||0,'projects/google_ads','#1a73e8','#e8f0fe')}
+      ${tcNew('fab fa-meta','Meta Ads',stats.metaAds||0,'projects/meta_ads','#1877f2','#e7f0fd')}
     </div>
 
     <div class="section-card">
       <div class="section-header">
-        <span class="section-title"><i class="fas fa-clock" style="color:var(--text-muted);margin-right:7px"></i>Recent Projects</span>
+        <span class="section-title"><i class="fas fa-clock" style="color:var(--text3);margin-right:7px"></i>Recent Projects
+          <span style="font-size:.78rem;color:var(--text3);font-weight:500;margin-left:8px">(${filtered.length})</span>
+        </span>
         <a href="#projects" class="section-link" onclick="navigate('projects')">View All <i class="fas fa-arrow-right"></i></a>
       </div>
       <div class="table-wrap">
         ${recent.length ? `
         <table class="data-table"><thead><tr>
-          <th>Project</th><th>Type</th><th>Status</th><th>Priority</th><th>Owner</th><th>End Date</th><th></th>
+          <th>Project</th><th>Type</th><th>Status</th><th>Priority</th>
+          <th>Client / Owner</th><th>Assigned To</th><th>Keywords</th><th></th>
         </tr></thead><tbody>${recent.map(p=>projRow(p)).join('')}</tbody></table>` :
-        emptyState('folder-open','No projects yet','Create your first project','openProjectModal()','New Project')}
+        emptyState('folder-open','No projects found','Try a different filter or create a project','openProjectModal()','New Project')}
       </div>
     </div>`);
+}
+
+function setDashFilter(filter, btn) {
+  STATE.dashFilter = filter;
+  document.querySelectorAll('.dash-ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDashboardContent(null, STATE.projects);
+  // Re-fetch stats only when needed
+  DB.getStats().then(stats => renderDashboardContent(stats, STATE.projects));
 }
 
 /* ============================================================
@@ -118,7 +148,14 @@ async function renderDashboard() {
    ============================================================ */
 async function renderProjects(filter) {
   html('content-area', skelGrid());
-  const projects = await DB.getProjects(filter);
+  // Fetch all and filter client-side so Google Ads & Meta Ads tabs show
+  // projects that have those services enabled, regardless of type
+  const [allProjects, users] = await Promise.all([DB.getProjects(), DB.getUsers()]);
+  STATE.users = users;
+  let projects = allProjects;
+  if (filter === 'seo')        projects = allProjects.filter(p => p.type === 'seo');
+  else if (filter === 'google_ads') projects = allProjects.filter(p => p.type === 'google_ads' || p.hasGoogleAds);
+  else if (filter === 'meta_ads')   projects = allProjects.filter(p => p.type === 'meta_ads'   || p.hasMetaAds);
   STATE.projects = projects;
 
   html('content-area', `
@@ -455,7 +492,7 @@ async function renderUsers() {
   html('content-area',`
     <div class="page-header">
       <div><h1 class="page-title">Users</h1><p class="page-subtitle">${users.length} team member${users.length!==1?'s':''}</p></div>
-      <div class="page-actions"><button class="btn btn-primary" onclick="openUserModal()"><i class="fas fa-user-plus"></i> Create User</button></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="openUserModal()"><i class="fas fa-user-plus"></i> Invite User</button></div>
     </div>
     <div class="section-card">
       ${users.length?`<div class="table-wrap"><table class="data-table"><thead><tr>
@@ -1277,6 +1314,7 @@ function projCard(p) {
         </div>
       </div>
       <div class="proj-card-name">${esc(p.name)}</div>
+      ${p.clientName ? `<div class="proj-card-client"><i class="fas fa-building" style="color:var(--text3)"></i>${esc(p.clientName)}</div>` : ''}
       <div class="proj-card-desc">${esc(p.description||'No description.')}</div>
       <div class="proj-card-foot">
         <div class="proj-dates"><i class="fas fa-calendar-alt"></i>${fmtDate(p.endDate)||'No deadline'}</div>
@@ -1291,7 +1329,15 @@ function projCard(p) {
 }
 
 function projRow(p) {
-  const owner = STATE.users.find(u=>u.id===p.ownerId);
+  const assigned = STATE.users.find(u=>u.id===p.ownerId);
+  const clientDisplay = p.clientName || '—';
+  const kwCount = p.targetKeywords ? String(p.targetKeywords).split(',').filter(k=>k.trim()).length : 0;
+  const assignedChip = assigned
+    ? `<div class="owner-chip"><div class="oc-av">${getInitials(assigned.name)}</div><span class="oc-name">${esc(assigned.name)}</span></div>`
+    : '<span class="text-muted text-sm">—</span>';
+  const kwDisplay = kwCount > 0
+    ? `<span class="kw-pill"><i class="fas fa-hashtag"></i>${kwCount}</span>`
+    : '<span class="text-muted text-sm">—</span>';
   return `<tr onclick="navigate('project/${p.id}')" style="cursor:pointer">
     <td><div class="proj-name-cell">
       <div class="proj-favicon" style="background:${typeColor(p.type)}">${typeLabel(p.type).slice(0,2).toUpperCase()}</div>
@@ -1300,8 +1346,9 @@ function projRow(p) {
     <td><span class="badge no-dot ${typeBadge(p.type)}">${typeLabel(p.type)}</span></td>
     <td><span class="badge ${statusBadge(p.status)}">${fmtStatus(p.status)}</span></td>
     <td><span class="badge no-dot ${priorityBadge(p.priority)}">${fmtPriority(p.priority)}</span></td>
-    <td class="text-secondary">${owner?.name||'—'}</td>
-    <td class="text-secondary">${fmtDate(p.endDate)||'—'}</td>
+    <td><span class="font-medium text-sm">${esc(clientDisplay)}</span></td>
+    <td>${assignedChip}</td>
+    <td>${kwDisplay}</td>
     <td><div class="t-actions">
       <button class="t-btn" onclick="event.stopPropagation();openProjectModal('${p.id}')" title="Edit"><i class="fas fa-edit"></i></button>
       <button class="t-btn del" onclick="event.stopPropagation();confirmDeleteProject('${p.id}')" title="Delete"><i class="fas fa-trash"></i></button>
@@ -1311,7 +1358,7 @@ function projRow(p) {
 
 function listTable(projects) {
   return `<div class="section-card"><div class="table-wrap"><table class="data-table">
-    <thead><tr><th>Project</th><th>Type</th><th>Status</th><th>Priority</th><th>Owner</th><th>End Date</th><th></th></tr></thead>
+    <thead><tr><th>Project</th><th>Type</th><th>Status</th><th>Priority</th><th>Client / Owner</th><th>Assigned To</th><th>Keywords</th><th></th></tr></thead>
     <tbody>${projects.map(p=>projRow(p)).join('')}</tbody>
   </table></div></div>`;
 }
@@ -1358,20 +1405,29 @@ function kanbanCol(status, title, tasks, projectId, color) {
   </div>`;
 }
 
-function sc(ico, lbl, val, cls) {
+function sc(ico, lbl, v, cls) {
   return `<div class="stat-card"><div class="stat-ico ${cls}"><i class="fas fa-${ico}"></i></div>
-    <div class="stat-info"><span class="stat-val">${val}</span><span class="stat-lbl">${lbl}</span></div></div>`;
+    <div class="stat-info"><span class="stat-val">${v}</span><span class="stat-lbl">${lbl}</span></div></div>`;
+}
+
+function gradSc(ico, lbl, v, grad) {
+  return `<div class="stat-card ${grad}">
+    <div class="stat-ico"><i class="fas fa-${ico}"></i></div>
+    <div class="stat-info"><span class="stat-val">${v}</span><span class="stat-lbl">${lbl}</span></div>
+  </div>`;
 }
 
 function tc(ico, lbl, count, href, badgeCls, color) {
-  const isFA = ico==='g'||ico==='m';
-  const icoHtml = ico==='g' ? `<svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>` :
-    ico==='m' ? `<i class="fab fa-meta" style="color:#1877f2"></i>` : `<i class="fas fa-${ico}" style="color:${color}"></i>`;
-  return `<a href="${href}" class="stat-card" style="text-decoration:none;cursor:pointer;gap:14px" onclick="navigate('${href.slice(1)}')">
-    <div class="stat-ico" style="background:${color}15">${icoHtml}</div>
-    <div class="stat-info"><span class="stat-val">${count}</span><span class="stat-lbl">${lbl}</span></div>
-    <i class="fas fa-arrow-right ml-auto" style="color:var(--text-muted);font-size:.78rem"></i>
-  </a>`;
+  return tcNew(ico, lbl, count, href.replace('#',''), color, color+'20');
+}
+
+function tcNew(ico, lbl, count, route, color, bg) {
+  const icoHtml = ico.startsWith('fab') ? `<i class="${ico}" style="color:${color}"></i>` : `<i class="fas fa-${ico}" style="color:${color}"></i>`;
+  return `<div class="type-card" style="background:${bg};border:1.5px solid ${color}20" onclick="navigate('${route}')">
+    <div class="tc-ico" style="background:white;box-shadow:0 2px 8px ${color}30">${icoHtml}</div>
+    <div><span class="tc-val" style="color:${color}">${count}</span><span class="tc-lbl" style="color:${color}">${lbl}</span></div>
+    <i class="fas fa-arrow-right tc-arrow" style="color:${color}"></i>
+  </div>`;
 }
 
 function metaItem(ico, label, value) {
