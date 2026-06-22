@@ -59,8 +59,8 @@ const DB = {
         onHold:     ps.filter(p=>p.status==='on_hold').length,
         completed:  ps.filter(p=>p.status==='completed').length,
         seo:        ps.filter(p=>p.type==='seo').length,
-        googleAds:  ps.filter(p=>p.type==='google_ads').length,
-        metaAds:    ps.filter(p=>p.type==='meta_ads').length,
+        googleAds:  ps.filter(p=>p.type==='google_ads' || !!p.hasGoogleAds).length,
+        metaAds:    ps.filter(p=>p.type==='meta_ads'   || !!p.hasMetaAds).length,
         general:    ps.filter(p=>p.type==='general').length,
       };
     } catch(e) { return {}; }
