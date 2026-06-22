@@ -657,12 +657,11 @@ async function openProjectModal(projectId, preType) {
               value="${esc(project?.clientName||'')}">
           </div>
           <div class="form-group">
-            <label class="form-label">Target Keywords
-              <span style="font-weight:400;color:var(--text3)">(comma separated)</span>
-            </label>
+            <label class="form-label">No. of Keywords / Keywords</label>
             <input type="text" class="form-input" id="p-keywords"
-              placeholder="seo audit, backlinks, content…"
+              placeholder="e.g. 150  or  seo, backlinks, gmb"
               value="${esc(project?.targetKeywords||'')}">
+            <span class="form-hint">Enter a number (e.g. 150) or list keywords separated by commas</span>
           </div>
         </div>
         <div class="form-group">
@@ -1428,13 +1427,23 @@ function projCard(p) {
 function projRow(p) {
   const assigned = STATE.users.find(u=>u.id===p.ownerId);
   const clientDisplay = p.clientName || '—';
-  const kwCount = p.targetKeywords ? String(p.targetKeywords).split(',').filter(k=>k.trim()).length : 0;
   const assignedChip = assigned
     ? `<div class="owner-chip"><div class="oc-av">${getInitials(assigned.name)}</div><span class="oc-name">${esc(assigned.name)}</span></div>`
     : '<span class="text-muted text-sm">—</span>';
-  const kwDisplay = kwCount > 0
-    ? `<span class="kw-pill"><i class="fas fa-hashtag"></i>${kwCount}</span>`
-    : '<span class="text-muted text-sm">—</span>';
+
+  // Keywords: if user entered a plain number (e.g. "150"), show it as-is.
+  // If comma-separated keywords, show the count. Show nothing if empty.
+  let kwDisplay = '<span class="text-muted text-sm">—</span>';
+  if (p.targetKeywords) {
+    const raw = String(p.targetKeywords).trim();
+    const isPlainNumber = /^\d+$/.test(raw);
+    if (isPlainNumber) {
+      kwDisplay = `<span class="kw-pill" title="${raw} keywords tracked">${raw}</span>`;
+    } else {
+      const kwCount = raw.split(',').filter(k => k.trim()).length;
+      kwDisplay = `<span class="kw-pill" title="${esc(raw)}">${kwCount}</span>`;
+    }
+  }
   return `<tr onclick="navigate('project/${p.id}')" style="cursor:pointer">
     <td><div class="proj-name-cell">
       <div class="proj-favicon" style="background:${typeColor(p.type)}">${typeLabel(p.type).slice(0,2).toUpperCase()}</div>
