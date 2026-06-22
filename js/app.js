@@ -85,66 +85,80 @@ async function renderDashboard() {
 }
 
 function renderDashboardContent(stats, projects) {
-  // Use cached stats if stats is null (e.g. called from toggle)
   if (stats) STATE.lastStats = stats;
   stats = STATE.lastStats || { total:0, notStarted:0, inProgress:0, onHold:0, completed:0, seo:0, googleAds:0, metaAds:0 };
   if (!projects || !projects.length) projects = STATE.projects || [];
-  // Filter for toggle
-  let filtered = [...projects];
-  if (STATE.dashFilter === 'active')   filtered = projects.filter(p => p.status === 'in_progress' || p.status === 'not_started');
-  if (STATE.dashFilter === 'inactive') filtered = projects.filter(p => p.status === 'on_hold' || p.status === 'completed');
-  const recent = filtered.slice(0, 8);
+
+  // Split projects into two groups
+  const liveProjects   = projects.filter(p => p.status === 'in_progress' || p.status === 'not_started');
+  const pausedProjects = projects.filter(p => p.status === 'on_hold' || p.status === 'completed');
+
+  const projTableHTML = (list) => list.length
+    ? `<div class="table-wrap"><table class="data-table">
+        <thead><tr>
+          <th>Project</th><th>Type</th><th>Status</th><th>Priority</th>
+          <th>Client / Owner</th><th>Assigned To</th><th>Keywords</th><th></th>
+        </tr></thead>
+        <tbody>${list.map(p => projRow(p)).join('')}</tbody>
+      </table></div>`
+    : `<div style="padding:28px;text-align:center;color:var(--text3);font-size:.875rem">
+        <i class="fas fa-inbox" style="font-size:1.5rem;margin-bottom:8px;display:block"></i>
+        No projects in this category
+      </div>`;
+
+  const sectionBadge = (count, color, bg) =>
+    `<span style="background:${bg};color:${color};padding:3px 10px;border-radius:var(--r-full);
+      font-size:.72rem;font-weight:700;margin-left:8px">${count}</span>`;
 
   html('content-area', `
     <div class="page-header">
       <div><h1 class="page-title">Dashboard</h1><p class="page-subtitle">Project overview &amp; quick stats</p></div>
       <div class="page-actions">
-        <div class="dash-filter-wrap">
-          <button class="dash-ftab ${STATE.dashFilter==='all'?'active':''}" onclick="setDashFilter('all',this)">All</button>
-          <button class="dash-ftab ${STATE.dashFilter==='active'?'active':''}" onclick="setDashFilter('active',this)">Active</button>
-          <button class="dash-ftab ${STATE.dashFilter==='inactive'?'active':''}" onclick="setDashFilter('inactive',this)">Inactive</button>
-        </div>
         <button class="btn btn-primary" onclick="openProjectModal()"><i class="fas fa-plus"></i> New Project</button>
       </div>
     </div>
 
     <div class="stats-grid">
       ${gradSc('folder','Total Projects', stats.total||0,'grad-purple')}
-      ${gradSc('circle-dot','In Progress', stats.inProgress||0,'grad-blue')}
+      ${gradSc('circle-dot','Live / Active', stats.inProgress||0,'grad-blue')}
       ${gradSc('pause-circle','On Hold', stats.onHold||0,'grad-orange')}
       ${gradSc('check-circle','Completed', stats.completed||0,'grad-green')}
     </div>
 
-    <div class="grid-3 mb-4">
+    <div class="grid-3 mb-5">
       ${tcNew('search','SEO',stats.seo||0,'projects/seo','#059669','#d1fae5')}
       ${tcNew('fab fa-google','Google Ads',stats.googleAds||0,'projects/google_ads','#1a73e8','#e8f0fe')}
       ${tcNew('fab fa-meta','Meta Ads',stats.metaAds||0,'projects/meta_ads','#1877f2','#e7f0fd')}
     </div>
 
-    <div class="section-card">
+    <!-- SECTION 1: LIVE PROJECTS -->
+    <div class="section-card mb-4">
       <div class="section-header">
-        <span class="section-title"><i class="fas fa-clock" style="color:var(--text3);margin-right:7px"></i>Recent Projects
-          <span style="font-size:.78rem;color:var(--text3);font-weight:500;margin-left:8px">(${filtered.length})</span>
+        <span class="section-title" style="display:flex;align-items:center">
+          <span style="width:9px;height:9px;border-radius:50%;background:#10b981;
+            display:inline-block;margin-right:9px;
+            box-shadow:0 0 0 3px rgba(16,185,129,.18)"></span>
+          Live Projects
+          ${sectionBadge(liveProjects.length,'#059669','#d1fae5')}
         </span>
-        <a href="#projects" class="section-link" onclick="navigate('projects')">View All <i class="fas fa-arrow-right"></i></a>
+        <a class="section-link" onclick="navigate('projects')">View All <i class="fas fa-arrow-right"></i></a>
       </div>
-      <div class="table-wrap">
-        ${recent.length ? `
-        <table class="data-table"><thead><tr>
-          <th>Project</th><th>Type</th><th>Status</th><th>Priority</th>
-          <th>Client / Owner</th><th>Assigned To</th><th>Keywords</th><th></th>
-        </tr></thead><tbody>${recent.map(p=>projRow(p)).join('')}</tbody></table>` :
-        emptyState('folder-open','No projects found','Try a different filter or create a project','openProjectModal()','New Project')}
-      </div>
-    </div>`);
-}
+      ${projTableHTML(liveProjects)}
+    </div>
 
-function setDashFilter(filter, btn) {
-  STATE.dashFilter = filter;
-  document.querySelectorAll('.dash-ftab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  // Use cached stats — renderDashboardContent now guards against null
-  renderDashboardContent(STATE.lastStats, STATE.projects);
+    <!-- SECTION 2: PAUSED / STOPPED / ENDED -->
+    <div class="section-card mb-2">
+      <div class="section-header">
+        <span class="section-title" style="display:flex;align-items:center">
+          <span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;
+            display:inline-block;margin-right:9px"></span>
+          Paused, Stopped &amp; Ended
+          ${sectionBadge(pausedProjects.length,'#92400e','#fef3c7')}
+        </span>
+      </div>
+      ${projTableHTML(pausedProjects)}
+    </div>
+  `);
 }
 
 /* ============================================================
