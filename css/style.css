@@ -498,6 +498,68 @@ h1,h2,h3,h4{line-height:1.25;font-weight:700}
 .progress{height:6px;background:var(--g100);border-radius:var(--r-full);overflow:hidden}
 .progress-fill{height:100%;border-radius:var(--r-full);transition:width .5s ease}
 
+
+/* ── PROJECT ACTIVE TOGGLE ───────────────────────── */
+.proj-toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r-full);
+  transition: background var(--tf);
+  user-select: none;
+}
+.proj-toggle-wrap:hover { background: var(--bg); }
+
+.proj-toggle {
+  width: 36px;
+  height: 20px;
+  border-radius: var(--r-full);
+  position: relative;
+  transition: background var(--t), box-shadow var(--t);
+  flex-shrink: 0;
+}
+.proj-toggle.on {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16,185,129,.18);
+}
+.proj-toggle.off {
+  background: var(--g300);
+}
+.proj-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  transition: left var(--t);
+}
+.proj-toggle.on  .proj-toggle-thumb { left: 19px; }
+.proj-toggle.off .proj-toggle-thumb { left: 3px; }
+
+.proj-toggle-label {
+  font-size: .72rem;
+  font-weight: 700;
+  min-width: 22px;
+  transition: color var(--t);
+}
+.proj-toggle-wrap:has(.proj-toggle.on)  .proj-toggle-label { color: #059669; }
+.proj-toggle-wrap:has(.proj-toggle.off) .proj-toggle-label { color: var(--text3); }
+
+/* ── TABLE IMPROVEMENTS ──────────────────────────── */
+.data-table td { padding: 14px 16px; }
+.data-table th:last-child,
+.data-table td:last-child { text-align: center; }
+.t-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+}
+
 /* ── ANIMATIONS ──────────────────────────── */
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
