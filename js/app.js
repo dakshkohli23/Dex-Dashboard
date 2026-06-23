@@ -96,9 +96,10 @@ function renderDashboardContent(stats, projects) {
   const projTableHTML = (list) => list.length
     ? `<div class="table-wrap"><table class="data-table">
         <thead><tr>
-          <th>Project</th><th>Type</th><th>Status</th><th>Priority</th>
-          <th>Client / Owner</th><th>Assigned To</th><th>Keywords</th>
-          <th style="text-align:center">Active</th>
+          <th style="width:64px;text-align:center">Active</th>
+          <th>Project</th><th>Type</th><th>Priority</th>
+          <th>Assigned To</th><th>Location</th><th>Keywords</th><th>Reporting Date</th>
+          <th></th>
         </tr></thead>
         <tbody>${list.map(p => projRow(p)).join('')}</tbody>
       </table></div>`
@@ -126,14 +127,14 @@ function renderDashboardContent(stats, projects) {
       ${gradSc('check-circle','Completed', stats.completed||0,'grad-green')}
     </div>
 
-    <div class="grid-3 mb-5">
+    <div class="grid-3" style="margin-bottom:28px">
       ${tcNew('search','SEO',stats.seo||0,'projects/seo','#059669','#d1fae5')}
       ${tcNew('fab fa-google','Google Ads',stats.googleAds||0,'projects/google_ads','#1a73e8','#e8f0fe')}
       ${tcNew('fab fa-meta','Meta Ads',stats.metaAds||0,'projects/meta_ads','#1877f2','#e7f0fd')}
     </div>
 
     <!-- SECTION 1: LIVE PROJECTS -->
-    <div class="section-card mb-4">
+    <div class="section-card mb-4" style="margin-top:8px">
       <div class="section-header">
         <span class="section-title" style="display:flex;align-items:center">
           <span style="width:9px;height:9px;border-radius:50%;background:#10b981;
@@ -148,7 +149,7 @@ function renderDashboardContent(stats, projects) {
     </div>
 
     <!-- SECTION 2: PAUSED / STOPPED / ENDED -->
-    <div class="section-card mb-2">
+    <div class="section-card mb-2" style="margin-top:24px">
       <div class="section-header">
         <span class="section-title" style="display:flex;align-items:center">
           <span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;
@@ -697,9 +698,43 @@ async function openProjectModal(projectId, preType) {
             </select>
           </div>
         </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Project Location</label>
+            <input type="text" class="form-input" id="p-location"
+              placeholder="e.g. Mumbai, India"
+              value="${esc(project?.projectLocation||'')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Reporting Date</label>
+            <input type="date" class="form-input" id="p-reporting"
+              value="${project?.reportingDate||''}">
+          </div>
+        </div>
         <div class="form-group">
-          <label class="form-label">Assign To <span style="font-weight:400;color:var(--text3)">(team member)</span></label>
-          <select class="form-input form-select" id="p-owner"><option value="">Unassigned</option>${uOptions}</select>
+          <label class="form-label">Assign To
+            <span style="font-weight:400;color:var(--text3)">(select multiple)</span>
+          </label>
+          <div style="border:1.5px solid var(--border);border-radius:var(--r-md);
+            padding:10px;max-height:160px;overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;gap:4px">
+            ${STATE.users.map(u=>`
+              <label style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:6px 8px;
+                border-radius:var(--r-md);transition:background var(--tf)"
+                onmouseover="this.style.background='var(--primary-light)'"
+                onmouseout="this.style.background='transparent'">
+                <input type="checkbox" value="${u.id}" class="p-assignee-cb"
+                  style="width:15px;height:15px;accent-color:var(--primary);flex-shrink:0"
+                  ${((project?.assigneeIds||[]).includes(u.id) || project?.ownerId===u.id) ? 'checked' : ''}>
+                <div class="oc-av" style="width:26px;height:26px;border-radius:50%;background:var(--grad-purple);
+                  display:flex;align-items:center;justify-content:center;color:white;font-size:.58rem;font-weight:700;flex-shrink:0">
+                  ${getInitials(u.name)}
+                </div>
+                <div>
+                  <div style="font-size:.84rem;font-weight:600;color:var(--text)">${esc(u.name)}</div>
+                  <div style="font-size:.7rem;color:var(--text3)">${esc(u.email)}</div>
+                </div>
+              </label>`).join('')||'<p style="color:var(--text3);font-size:.83rem;padding:8px">No users found</p>'}
+          </div>
         </div>
       </div>
 
@@ -778,25 +813,29 @@ async function saveProject(projectId) {
   const name = document.getElementById('p-name')?.value?.trim();
   if (!name) { showToast('Project name is required','error'); return; }
 
-  const members = Array.from(document.querySelectorAll('.proj-member-cb:checked')).map(e=>e.value);
+  const members    = Array.from(document.querySelectorAll('.proj-member-cb:checked')).map(e=>e.value);
+  const assigneeIds = Array.from(document.querySelectorAll('.p-assignee-cb:checked')).map(e=>e.value);
   const anKeys = ['hasAnalytics','hasSearchConsole','hasGoogleAds','hasMetaAds','hasSemrush','hasAhrefs'];
   const analytics = {};
   anKeys.forEach(k=>{ analytics[k]=document.getElementById(`an-${k}`)?.checked||false; });
 
   const data = {
     name,
-    clientName:     val('p-client')     || null,
-    targetKeywords: val('p-keywords')   || null,
-    description:    val('p-desc')       || null,
-    type:           val('p-type')       || 'general',
-    priority:       val('p-priority')   || 'medium',
-    status:         val('p-status')     || 'not_started',
-    ownerId:        val('p-owner')      || null,
-    teamMembers:    members,
-    notes:          val('p-notes')      || null,
-    startDate:      val('p-start')      || null,
-    endDate:        val('p-end')        || null,
-    closedAt:       val('p-close')      || null,
+    clientName:      val('p-client')    || null,
+    targetKeywords:  val('p-keywords')  || null,
+    projectLocation: val('p-location')  || null,
+    reportingDate:   val('p-reporting') || null,
+    description:     val('p-desc')      || null,
+    type:            val('p-type')      || 'general',
+    priority:        val('p-priority')  || 'medium',
+    status:          val('p-status')    || 'not_started',
+    ownerId:         assigneeIds[0]     || null,   // keep first as primary for compatibility
+    assigneeIds,
+    teamMembers:     members,
+    notes:           val('p-notes')     || null,
+    startDate:       val('p-start')     || null,
+    endDate:         val('p-end')       || null,
+    closedAt:        val('p-close')     || null,
     ...analytics,
   };
 
@@ -1489,61 +1528,80 @@ function projCard(p) {
 }
 
 function projRow(p) {
-  const assigned = STATE.users.find(u=>u.id===p.ownerId);
-  const clientDisplay = p.clientName || '—';
   const isLive = p.status === 'in_progress' || p.status === 'not_started';
 
-  const assignedChip = assigned
-    ? `<div class="owner-chip"><div class="oc-av">${getInitials(assigned.name)}</div><span class="oc-name">${esc(assigned.name)}</span></div>`
+  // Multiple assignees support
+  const assigneeIds = p.assigneeIds && p.assigneeIds.length ? p.assigneeIds
+    : (p.ownerId ? [p.ownerId] : []);
+  const assignees = assigneeIds.map(id => STATE.users.find(u => u.id === id)).filter(Boolean);
+  const assigneeHTML = assignees.length
+    ? `<div class="multi-assign-stack">
+        ${assignees.slice(0,3).map(u =>
+          `<div class="owner-chip" title="${esc(u.name)}">
+            <div class="oc-av">${getInitials(u.name)}</div>
+            <span class="oc-name">${esc(u.name.split(' ')[0])}</span>
+          </div>`
+        ).join('')}
+        ${assignees.length > 3 ? `<div class="oc-more">+${assignees.length - 3}</div>` : ''}
+      </div>`
     : '<span class="text-muted text-sm">—</span>';
 
+  // Keywords
   let kwDisplay = '<span class="text-muted text-sm">—</span>';
   if (p.targetKeywords) {
     const raw = String(p.targetKeywords).trim();
     const isPlainNumber = /^\d+$/.test(raw);
-    if (isPlainNumber) {
-      kwDisplay = `<span class="kw-pill" title="${raw} keywords tracked">${raw}</span>`;
-    } else {
-      const kwCount = raw.split(',').filter(k => k.trim()).length;
-      kwDisplay = `<span class="kw-pill" title="${esc(raw)}">${kwCount}</span>`;
-    }
+    kwDisplay = isPlainNumber
+      ? `<span class="kw-pill" title="${raw} keywords">${raw}</span>`
+      : `<span class="kw-pill" title="${esc(raw)}">${raw.split(',').filter(k=>k.trim()).length}</span>`;
   }
 
+  // Location
+  const loc = p.projectLocation
+    ? `<div style="display:flex;align-items:center;gap:4px;font-size:.82rem;color:var(--text2)">
+        <i class="fas fa-map-marker-alt" style="color:var(--danger);font-size:.7rem"></i>${esc(p.projectLocation)}
+      </div>`
+    : '<span class="text-muted text-sm">—</span>';
+
+  // Reporting date
+  const rptDate = p.reportingDate
+    ? `<div style="font-size:.82rem;color:var(--text2);display:flex;align-items:center;gap:4px">
+        <i class="fas fa-calendar-check" style="color:var(--primary);font-size:.72rem"></i>${fmtDate(p.reportingDate)||p.reportingDate}
+      </div>`
+    : '<span class="text-muted text-sm">—</span>';
+
+  const nav = `onclick="navigate('project/${p.id}')" style="cursor:pointer"`;
+
   return `<tr>
-    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
+    <td style="text-align:center;width:64px">
+      <div class="proj-toggle-wrap" title="${isLive ? 'Pause project' : 'Activate project'}"
+        onclick="toggleProjectActive('${p.id}','${p.status}',this)">
+        <div class="proj-toggle ${isLive ? 'on' : 'off'}">
+          <div class="proj-toggle-thumb"></div>
+        </div>
+        <span class="proj-toggle-label">${isLive ? 'Live' : 'Off'}</span>
+      </div>
+    </td>
+    <td ${nav}>
       <div class="proj-name-cell">
         <div class="proj-favicon" style="background:${typeColor(p.type)}">${typeLabel(p.type).slice(0,2).toUpperCase()}</div>
         <div>
           <div class="font-medium" style="font-size:.88rem">${esc(p.name)}</div>
-          ${p.clientName ? `<div style="font-size:.72rem;color:var(--text3);margin-top:1px"><i class="fas fa-building" style="margin-right:3px"></i>${esc(p.clientName)}</div>` : ''}
+          ${p.clientName ? `<div style="font-size:.72rem;color:var(--text3);margin-top:1px">
+            <i class="fas fa-building" style="margin-right:3px"></i>${esc(p.clientName)}</div>` : ''}
         </div>
       </div>
     </td>
-    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
-      <span class="badge no-dot ${typeBadge(p.type)}">${typeLabel(p.type)}</span>
-    </td>
-    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
-      <span class="badge ${statusBadge(p.status)}">${fmtStatus(p.status)}</span>
-    </td>
-    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
-      <span class="badge no-dot ${priorityBadge(p.priority)}">${fmtPriority(p.priority)}</span>
-    </td>
-    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
-      <span class="font-medium text-sm">${esc(clientDisplay)}</span>
-    </td>
-    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">${assignedChip}</td>
-    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">${kwDisplay}</td>
+    <td ${nav}><span class="badge no-dot ${typeBadge(p.type)}">${typeLabel(p.type)}</span></td>
+    <td ${nav}><span class="badge no-dot ${priorityBadge(p.priority)}">${fmtPriority(p.priority)}</span></td>
+    <td ${nav}>${assigneeHTML}</td>
+    <td ${nav}>${loc}</td>
+    <td ${nav}>${kwDisplay}</td>
+    <td ${nav}>${rptDate}</td>
     <td>
       <div class="t-actions">
-        <div class="proj-toggle-wrap" title="${isLive ? 'Click to pause project' : 'Click to activate project'}"
-          onclick="event.stopPropagation();toggleProjectActive('${p.id}','${p.status}',this)">
-          <div class="proj-toggle ${isLive ? 'on' : 'off'}">
-            <div class="proj-toggle-thumb"></div>
-          </div>
-          <span class="proj-toggle-label">${isLive ? 'Live' : 'Off'}</span>
-        </div>
-        <button class="t-btn" onclick="event.stopPropagation();openProjectModal('${p.id}')" title="Edit"><i class="fas fa-edit"></i></button>
-        <button class="t-btn del" onclick="event.stopPropagation();confirmDeleteProject('${p.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+        <button class="t-btn" onclick="openProjectModal('${p.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+        <button class="t-btn del" onclick="confirmDeleteProject('${p.id}')" title="Delete"><i class="fas fa-trash"></i></button>
       </div>
     </td>
   </tr>`;
@@ -1551,7 +1609,11 @@ function projRow(p) {
 
 function listTable(projects) {
   return `<div class="section-card"><div class="table-wrap"><table class="data-table">
-    <thead><tr><th>Project</th><th>Type</th><th>Status</th><th>Priority</th><th>Client / Owner</th><th>Assigned To</th><th>Keywords</th><th></th></tr></thead>
+    <thead><tr>
+      <th style="width:64px;text-align:center">Active</th>
+      <th>Project</th><th>Type</th><th>Priority</th>
+      <th>Assigned To</th><th>Location</th><th>Keywords</th><th>Reporting Date</th><th></th>
+    </tr></thead>
     <tbody>${projects.map(p=>projRow(p)).join('')}</tbody>
   </table></div></div>`;
 }
