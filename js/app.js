@@ -97,7 +97,8 @@ function renderDashboardContent(stats, projects) {
     ? `<div class="table-wrap"><table class="data-table">
         <thead><tr>
           <th>Project</th><th>Type</th><th>Status</th><th>Priority</th>
-          <th>Client / Owner</th><th>Assigned To</th><th>Keywords</th><th></th>
+          <th>Client / Owner</th><th>Assigned To</th><th>Keywords</th>
+          <th style="text-align:center">Active</th>
         </tr></thead>
         <tbody>${list.map(p => projRow(p)).join('')}</tbody>
       </table></div>`
@@ -1333,6 +1334,55 @@ async function doDeleteProject(id) {
   }
 }
 
+async function toggleProjectActive(projectId, currentStatus, wrapEl) {
+  const isLive = currentStatus === 'in_progress' || currentStatus === 'not_started';
+  // Toggle: if live → on_hold, if paused/done → in_progress
+  const newStatus = isLive ? 'on_hold' : 'in_progress';
+
+  // Optimistic UI update
+  const toggle = wrapEl.querySelector('.proj-toggle');
+  const label  = wrapEl.querySelector('.proj-toggle-label');
+  if (toggle && label) {
+    toggle.classList.toggle('on', !isLive);
+    toggle.classList.toggle('off', isLive);
+    label.textContent = isLive ? 'Off' : 'Live';
+    wrapEl.title = isLive ? 'Click to activate project' : 'Click to pause project';
+  }
+
+  // Update in Firestore
+  try {
+    const update = { status: newStatus };
+    if (newStatus === 'on_hold') update.pausedAt = new Date().toISOString().split('T')[0];
+    if (newStatus === 'in_progress') update.pausedAt = null;
+    await DB.updateProject(projectId, update);
+
+    // Update STATE.projects so re-renders are consistent
+    const proj = STATE.projects.find(p => p.id === projectId);
+    if (proj) {
+      proj.status = newStatus;
+      if (newStatus === 'on_hold') proj.pausedAt = update.pausedAt;
+      if (newStatus === 'in_progress') proj.pausedAt = null;
+    }
+
+    showToast(
+      newStatus === 'on_hold' ? 'Project paused' : 'Project activated',
+      newStatus === 'on_hold' ? 'warning' : 'success'
+    );
+
+    // Re-render both sections without full page reload
+    const stats = await DB.getStats();
+    renderDashboardContent(stats, STATE.projects);
+  } catch(e) {
+    // Revert optimistic update on error
+    if (toggle && label) {
+      toggle.classList.toggle('on', isLive);
+      toggle.classList.toggle('off', !isLive);
+      label.textContent = isLive ? 'Live' : 'Off';
+    }
+    showToast('Failed to update project', 'error');
+  }
+}
+
 /* ============================================================
    MODAL SYSTEM
    ============================================================ */
@@ -1441,12 +1491,12 @@ function projCard(p) {
 function projRow(p) {
   const assigned = STATE.users.find(u=>u.id===p.ownerId);
   const clientDisplay = p.clientName || '—';
+  const isLive = p.status === 'in_progress' || p.status === 'not_started';
+
   const assignedChip = assigned
     ? `<div class="owner-chip"><div class="oc-av">${getInitials(assigned.name)}</div><span class="oc-name">${esc(assigned.name)}</span></div>`
     : '<span class="text-muted text-sm">—</span>';
 
-  // Keywords: if user entered a plain number (e.g. "150"), show it as-is.
-  // If comma-separated keywords, show the count. Show nothing if empty.
   let kwDisplay = '<span class="text-muted text-sm">—</span>';
   if (p.targetKeywords) {
     const raw = String(p.targetKeywords).trim();
@@ -1458,21 +1508,44 @@ function projRow(p) {
       kwDisplay = `<span class="kw-pill" title="${esc(raw)}">${kwCount}</span>`;
     }
   }
-  return `<tr onclick="navigate('project/${p.id}')" style="cursor:pointer">
-    <td><div class="proj-name-cell">
-      <div class="proj-favicon" style="background:${typeColor(p.type)}">${typeLabel(p.type).slice(0,2).toUpperCase()}</div>
-      <span class="font-medium">${esc(p.name)}</span>
-    </div></td>
-    <td><span class="badge no-dot ${typeBadge(p.type)}">${typeLabel(p.type)}</span></td>
-    <td><span class="badge ${statusBadge(p.status)}">${fmtStatus(p.status)}</span></td>
-    <td><span class="badge no-dot ${priorityBadge(p.priority)}">${fmtPriority(p.priority)}</span></td>
-    <td><span class="font-medium text-sm">${esc(clientDisplay)}</span></td>
-    <td>${assignedChip}</td>
-    <td>${kwDisplay}</td>
-    <td><div class="t-actions">
-      <button class="t-btn" onclick="event.stopPropagation();openProjectModal('${p.id}')" title="Edit"><i class="fas fa-edit"></i></button>
-      <button class="t-btn del" onclick="event.stopPropagation();confirmDeleteProject('${p.id}')" title="Delete"><i class="fas fa-trash"></i></button>
-    </div></td>
+
+  return `<tr>
+    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
+      <div class="proj-name-cell">
+        <div class="proj-favicon" style="background:${typeColor(p.type)}">${typeLabel(p.type).slice(0,2).toUpperCase()}</div>
+        <div>
+          <div class="font-medium" style="font-size:.88rem">${esc(p.name)}</div>
+          ${p.clientName ? `<div style="font-size:.72rem;color:var(--text3);margin-top:1px"><i class="fas fa-building" style="margin-right:3px"></i>${esc(p.clientName)}</div>` : ''}
+        </div>
+      </div>
+    </td>
+    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
+      <span class="badge no-dot ${typeBadge(p.type)}">${typeLabel(p.type)}</span>
+    </td>
+    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
+      <span class="badge ${statusBadge(p.status)}">${fmtStatus(p.status)}</span>
+    </td>
+    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
+      <span class="badge no-dot ${priorityBadge(p.priority)}">${fmtPriority(p.priority)}</span>
+    </td>
+    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">
+      <span class="font-medium text-sm">${esc(clientDisplay)}</span>
+    </td>
+    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">${assignedChip}</td>
+    <td onclick="navigate('project/${p.id}')" style="cursor:pointer">${kwDisplay}</td>
+    <td>
+      <div class="t-actions">
+        <div class="proj-toggle-wrap" title="${isLive ? 'Click to pause project' : 'Click to activate project'}"
+          onclick="event.stopPropagation();toggleProjectActive('${p.id}','${p.status}',this)">
+          <div class="proj-toggle ${isLive ? 'on' : 'off'}">
+            <div class="proj-toggle-thumb"></div>
+          </div>
+          <span class="proj-toggle-label">${isLive ? 'Live' : 'Off'}</span>
+        </div>
+        <button class="t-btn" onclick="event.stopPropagation();openProjectModal('${p.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+        <button class="t-btn del" onclick="event.stopPropagation();confirmDeleteProject('${p.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+      </div>
+    </td>
   </tr>`;
 }
 
