@@ -647,165 +647,485 @@ async function openProjectModal(projectId, preType) {
   ];
 
   showModal(`<div class="modal modal-lg">
-    <div class="modal-header">
-      <h2 class="modal-title">${isEdit?'Edit Project':'New Project'}</h2>
+    <div class="modal-header" style="padding:20px 26px;border-bottom:2px solid var(--border-light)">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;border-radius:var(--r-md);background:var(--primary-light);
+          display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:.9rem">
+          <i class="fas fa-${isEdit?'edit':'plus-circle'}"></i>
+        </div>
+        <div>
+          <h2 class="modal-title">${isEdit?'Edit Project':'New Project'}</h2>
+          <p style="font-size:.75rem;color:var(--text3);margin-top:1px">
+            ${isEdit?'Update project information':'Fill in the details to create a new project'}
+          </p>
+        </div>
+      </div>
       <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
     </div>
-    <div class="modal-body">
-      <div class="tabs-header mb-5" id="m-tabs">
-        ${['basic','dates','team','analytics'].map((t,i)=>
-          `<button class="tab-btn${i===0?' active':''}" data-tab="${t}" onclick="switchMTab('${t}',this)">${cap(t)}</button>`
-        ).join('')}
-      </div>
 
+    <!-- TABS -->
+    <div style="display:flex;border-bottom:2px solid var(--border-light);background:var(--bg);padding:0 26px" id="m-tabs">
+      ${[
+        ['basic','layer-group','Details'],
+        ['dates','calendar-alt','Timeline'],
+        ['team','users','Team'],
+        ['analytics','chart-line','Services'],
+      ].map(([t,ico,lbl],i)=>`
+        <button class="m-tab-btn${i===0?' m-tab-active':''}" data-tab="${t}" onclick="switchMTab('${t}',this)"
+          style="display:flex;align-items:center;gap:7px;padding:14px 18px;font-size:.84rem;font-weight:600;
+          border:none;background:none;cursor:pointer;color:${i===0?'var(--primary)':'var(--text3)'};
+          border-bottom:2px solid ${i===0?'var(--primary)':'transparent'};margin-bottom:-2px;transition:all .15s ease">
+          <i class="fas fa-${ico}" style="font-size:.8rem"></i>${lbl}
+        </button>`).join('')}
+    </div>
+
+    <div class="modal-body" style="padding:24px 26px;max-height:62vh;overflow-y:auto">
+
+      <!-- ══ BASIC TAB ══════════════════════════════════ -->
       <div id="mt-basic" class="form-section">
+
+        <!-- Project Name -->
         <div class="form-group">
-          <label class="form-label">Project Name <span class="form-req">*</span></label>
-          <input type="text" class="form-input" id="p-name" placeholder="e.g. Client Website SEO" value="${esc(project?.name||'')}">
-        </div>
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label">Client / Owner Name <span class="form-req">*</span>
-              <span style="font-weight:400;color:var(--text3)">(manual)</span>
-            </label>
-            <input type="text" class="form-input" id="p-client"
-              placeholder="e.g. Acme Corp or John Smith"
-              value="${esc(project?.clientName||'')}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">No. of Keywords / Keywords</label>
-            <input type="text" class="form-input" id="p-keywords"
-              placeholder="e.g. 150  or  seo, backlinks, gmb"
-              value="${esc(project?.targetKeywords||'')}">
-            <span class="form-hint">Enter a number (e.g. 150) or list keywords separated by commas</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Description</label>
-          <textarea class="form-input form-textarea" id="p-desc" placeholder="Brief description…">${esc(project?.description||'')}</textarea>
-        </div>
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label">Project Type <span class="form-req">*</span></label>
-            <select class="form-input form-select" id="p-type">
-              ${['general','seo','google_ads','meta_ads'].map(t=>`<option value="${t}" ${defType===t?'selected':''}>${typeLabel(t)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Priority</label>
-            <select class="form-input form-select" id="p-priority">
-              ${['low','medium','high','critical'].map(p=>`<option value="${p}" ${(project?.priority||'medium')===p?'selected':''}>${cap(p)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label">Project Location</label>
-            <input type="text" class="form-input" id="p-location"
-              placeholder="e.g. Mumbai, India"
-              value="${esc(project?.projectLocation||'')}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Reporting Date</label>
-            <input type="date" class="form-input" id="p-reporting"
-              value="${project?.reportingDate||''}">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Assign To
-            <span style="font-weight:400;color:var(--text3)">(select multiple)</span>
+          <label class="form-label" style="font-size:.8rem">
+            Project Name <span class="form-req">*</span>
           </label>
-          <div style="border:1.5px solid var(--border);border-radius:var(--r-md);
-            padding:10px;max-height:160px;overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;gap:4px">
-            ${STATE.users.map(u=>`
-              <label style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:6px 8px;
-                border-radius:var(--r-md);transition:background var(--tf)"
-                onmouseover="this.style.background='var(--primary-light)'"
-                onmouseout="this.style.background='transparent'">
+          <input type="text" class="form-input" id="p-name"
+            placeholder="e.g. Bestway Courier SEO Campaign"
+            value="${esc(project?.name||'')}"
+            style="font-size:.95rem;font-weight:600;padding:11px 14px">
+        </div>
+
+        <!-- Type Selector (visual pill buttons) -->
+        <div class="form-group">
+          <label class="form-label" style="font-size:.8rem">Project Type <span class="form-req">*</span></label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px" id="type-btns">
+            ${[
+              ['general','briefcase','General','var(--primary)','var(--primary-light)'],
+              ['seo','search','SEO','#059669','#d1fae5'],
+              ['google_ads','fab fa-google','Google Ads','#1a73e8','#e8f0fe'],
+              ['meta_ads','fab fa-meta','Meta Ads','#1877f2','#e7f0fd'],
+            ].map(([val,ico,lbl,color,bg])=>`
+              <label style="cursor:pointer">
+                <input type="radio" name="p-type-r" value="${val}" class="p-type-radio"
+                  ${defType===val?'checked':''} style="display:none"
+                  onchange="updateTypeBtn()">
+                <div class="type-pill ${defType===val?'type-pill-active':''}"
+                  data-val="${val}" data-color="${color}" data-bg="${bg}"
+                  style="display:flex;flex-direction:column;align-items:center;gap:5px;
+                    padding:10px 8px;border-radius:var(--r-lg);border:2px solid ${defType===val?color:'var(--border)'};
+                    background:${defType===val?bg:'var(--surface)'};transition:all .15s ease;text-align:center">
+                  <i class="${ico.startsWith('fab')?ico:'fas fa-'+ico}"
+                    style="font-size:1.1rem;color:${defType===val?color:'var(--text3)'}"></i>
+                  <span style="font-size:.75rem;font-weight:700;color:${defType===val?color:'var(--text3)'}">${lbl}</span>
+                </div>
+              </label>`).join('')}
+          </div>
+          <input type="hidden" id="p-type" value="${defType}">
+        </div>
+
+        <!-- Client + Priority -->
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" style="font-size:.8rem">Client / Owner Name <span class="form-req">*</span></label>
+            <div class="input-wrap">
+              <i class="fas fa-building input-ico"></i>
+              <input type="text" class="form-input has-ico" id="p-client"
+                placeholder="e.g. Acme Corp" value="${esc(project?.clientName||'')}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:.8rem">Priority</label>
+            <div style="display:flex;gap:6px" id="priority-btns">
+              ${[
+                ['low','Low','#059669','#d1fae5'],
+                ['medium','Med','#d97706','#fef3c7'],
+                ['high','High','#ea580c','#ffedd5'],
+                ['critical','Crit','#dc2626','#fee2e2'],
+              ].map(([val,lbl,color,bg])=>`
+                <label style="cursor:pointer;flex:1">
+                  <input type="radio" name="p-priority-r" value="${val}" class="p-priority-radio"
+                    ${(project?.priority||'medium')===val?'checked':''} style="display:none"
+                    onchange="updatePriorityBtn()">
+                  <div class="priority-pill"
+                    style="text-align:center;padding:7px 4px;border-radius:var(--r-md);border:2px solid ${(project?.priority||'medium')===val?color:'var(--border)'};
+                    background:${(project?.priority||'medium')===val?bg:'var(--surface)'};
+                    font-size:.72rem;font-weight:700;color:${(project?.priority||'medium')===val?color:'var(--text3)'};
+                    transition:all .15s ease;cursor:pointer">
+                    ${lbl}
+                  </div>
+                </label>`).join('')}
+            </div>
+            <input type="hidden" id="p-priority" value="${project?.priority||'medium'}">
+          </div>
+        </div>
+
+        <!-- Location + Keywords -->
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" style="font-size:.8rem">Project Location</label>
+            <div class="input-wrap">
+              <i class="fas fa-map-marker-alt input-ico" style="color:var(--danger)"></i>
+              <input type="text" class="form-input has-ico" id="p-location"
+                placeholder="e.g. Mumbai, India"
+                value="${esc(project?.projectLocation||'')}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:.8rem">No. of Keywords / Keywords</label>
+            <div class="input-wrap">
+              <i class="fas fa-hashtag input-ico" style="color:var(--primary)"></i>
+              <input type="text" class="form-input has-ico" id="p-keywords"
+                placeholder="150  or  seo, backlinks, gmb…"
+                value="${esc(project?.targetKeywords||'')}">
+            </div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label class="form-label" style="font-size:.8rem">Description</label>
+          <textarea class="form-input form-textarea" id="p-desc"
+            placeholder="Brief project description, goals, scope…"
+            style="min-height:80px">${esc(project?.description||'')}</textarea>
+        </div>
+
+        <!-- Assign To -->
+        <div class="form-group">
+          <label class="form-label" style="font-size:.8rem">Assign To
+            <span style="font-weight:500;color:var(--primary);margin-left:6px;font-size:.72rem">
+              ${STATE.users.filter(u=>(project?.assigneeIds||[]).includes(u.id)||project?.ownerId===u.id).length
+                ? STATE.users.filter(u=>(project?.assigneeIds||[]).includes(u.id)||project?.ownerId===u.id).length+' selected'
+                : 'Select team members'}
+            </span>
+          </label>
+          <!-- Search -->
+          <div class="input-wrap" style="margin-bottom:6px">
+            <i class="fas fa-search input-ico"></i>
+            <input type="text" class="form-input has-ico" placeholder="Search members…"
+              oninput="filterAssigneeList(this.value)"
+              style="border-radius:var(--r-md) var(--r-md) 0 0;border-bottom:none">
+          </div>
+          <div id="assignee-list"
+            style="border:1.5px solid var(--border);border-radius:0 0 var(--r-md) var(--r-md);
+            max-height:180px;overflow-y:auto;background:var(--surface)">
+            ${STATE.users.map(u=>{
+              const checked = (project?.assigneeIds||[]).includes(u.id) || project?.ownerId===u.id;
+              return `<label class="assignee-row ${checked?'assignee-checked':''}" data-name="${esc(u.name.toLowerCase())}" data-email="${esc(u.email.toLowerCase())}"
+                style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;
+                border-bottom:1px solid var(--border-light);transition:background .1s;
+                background:${checked?'var(--primary-light)':'transparent'}"
+                onmouseover="if(!this.querySelector('input').checked)this.style.background='var(--bg)'"
+                onmouseout="if(!this.querySelector('input').checked)this.style.background='transparent'">
                 <input type="checkbox" value="${u.id}" class="p-assignee-cb"
-                  style="width:15px;height:15px;accent-color:var(--primary);flex-shrink:0"
-                  ${((project?.assigneeIds||[]).includes(u.id) || project?.ownerId===u.id) ? 'checked' : ''}>
-                <div class="oc-av" style="width:26px;height:26px;border-radius:50%;background:var(--grad-purple);
-                  display:flex;align-items:center;justify-content:center;color:white;font-size:.58rem;font-weight:700;flex-shrink:0">
-                  ${getInitials(u.name)}
-                </div>
-                <div>
+                  ${checked?'checked':''}
+                  style="display:none"
+                  onchange="this.closest('label').style.background=this.checked?'var(--primary-light)':'transparent'">
+                <div style="width:32px;height:32px;border-radius:50%;background:var(--grad-purple);
+                  display:flex;align-items:center;justify-content:center;color:white;
+                  font-size:.62rem;font-weight:700;flex-shrink:0">${getInitials(u.name)}</div>
+                <div style="flex:1;min-width:0">
                   <div style="font-size:.84rem;font-weight:600;color:var(--text)">${esc(u.name)}</div>
-                  <div style="font-size:.7rem;color:var(--text3)">${esc(u.email)}</div>
+                  <div style="font-size:.72rem;color:var(--text3)">${esc(u.email)}</div>
                 </div>
-              </label>`).join('')||'<p style="color:var(--text3);font-size:.83rem;padding:8px">No users found</p>'}
+                <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${checked?'var(--primary)':'var(--border)'};
+                  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+                  background:${checked?'var(--primary)':'transparent'};transition:all .15s">
+                  ${checked?'<i class="fas fa-check" style="font-size:.5rem;color:white"></i>':''}
+                </div>
+              </label>`;
+            }).join('')||'<p style="padding:16px;text-align:center;color:var(--text3);font-size:.84rem">No users found</p>'}
           </div>
         </div>
       </div>
 
+      <!-- ══ DATES TAB ══════════════════════════════════ -->
       <div id="mt-dates" class="form-section" style="display:none">
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label">Status</label>
-            <select class="form-input form-select" id="p-status">
-              ${['not_started','in_progress','on_hold','completed'].map(s=>`<option value="${s}" ${(project?.status||'not_started')===s?'selected':''}>${fmtStatus(s)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Start Date</label>
-            <input type="date" class="form-input" id="p-start" value="${project?.startDate||''}">
-          </div>
-        </div>
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label">End Date</label>
-            <input type="date" class="form-input" id="p-end" value="${project?.endDate||''}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Close Date</label>
-            <input type="date" class="form-input" id="p-close" value="${project?.closedAt||''}">
-          </div>
-        </div>
+
+        <!-- Status visual selector -->
         <div class="form-group">
-          <label class="form-label">Project Notes</label>
-          <textarea class="form-input form-textarea" id="p-notes" placeholder="Notes, requirements, client info…">${esc(project?.notes||'')}</textarea>
+          <label class="form-label" style="font-size:.8rem">Project Status</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+            ${[
+              ['not_started','circle-dot','Not Started','#64748b','#f1f5f9'],
+              ['in_progress','spinner','In Progress','#1d4ed8','#dbeafe'],
+              ['on_hold','pause-circle','On Hold','#b45309','#fef3c7'],
+              ['completed','check-circle','Completed','#065f46','#d1fae5'],
+            ].map(([val,ico,lbl,color,bg])=>`
+              <label style="cursor:pointer">
+                <input type="radio" name="p-status-r" value="${val}"
+                  ${(project?.status||'not_started')===val?'checked':''} style="display:none"
+                  onchange="updateStatusBtn()">
+                <div style="text-align:center;padding:10px 6px;border-radius:var(--r-lg);
+                  border:2px solid ${(project?.status||'not_started')===val?color:'var(--border)'};
+                  background:${(project?.status||'not_started')===val?bg:'var(--surface)'};
+                  transition:all .15s;cursor:pointer">
+                  <i class="fas fa-${ico}" style="font-size:1.1rem;color:${(project?.status||'not_started')===val?color:'var(--text3)'}"></i>
+                  <div style="font-size:.7rem;font-weight:700;color:${(project?.status||'not_started')===val?color:'var(--text3)'};margin-top:5px">${lbl}</div>
+                </div>
+              </label>`).join('')}
+          </div>
+          <input type="hidden" id="p-status" value="${project?.status||'not_started'}">
         </div>
-      </div>
 
-      <div id="mt-team" class="form-section" style="display:none">
-        <div class="form-group"><label class="form-label">Team Members</label>
-          <div class="section-card" style="padding:10px;display:flex;flex-direction:column;gap:2px;max-height:280px;overflow-y:auto">
-            ${memberChecks||'<p class="text-muted text-sm p-4 text-center">No users found</p>'}
+        <!-- Date timeline -->
+        <div style="background:var(--bg);border-radius:var(--r-lg);padding:18px;position:relative">
+          <div style="font-size:.8rem;font-weight:700;color:var(--text2);margin-bottom:14px;
+            text-transform:uppercase;letter-spacing:.5px">
+            <i class="fas fa-calendar-alt" style="color:var(--primary);margin-right:6px"></i>Project Timeline
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+            <div class="form-group">
+              <label class="form-label" style="font-size:.75rem;color:var(--success)">
+                <i class="fas fa-play-circle"></i> Start Date
+              </label>
+              <input type="date" class="form-input" id="p-start" value="${project?.startDate||''}"
+                style="border-color:#a7f3d0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size:.75rem;color:var(--warn)">
+                <i class="fas fa-flag-checkered"></i> End Date
+              </label>
+              <input type="date" class="form-input" id="p-end" value="${project?.endDate||''}"
+                style="border-color:#fde68a">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size:.75rem;color:var(--danger)">
+                <i class="fas fa-times-circle"></i> Close Date
+              </label>
+              <input type="date" class="form-input" id="p-close" value="${project?.closedAt||''}"
+                style="border-color:#fecaca">
+            </div>
           </div>
         </div>
-      </div>
 
-      <div id="mt-analytics" class="form-section" style="display:none">
-        <p class="text-secondary text-sm mb-4">Enable the services configured for this project.</p>
-        ${analyticsFields.map(([key,name,ico])=>`
-        <div class="flex items-center justify-between p-3 card mb-2">
-          <div class="flex items-center gap-3">
-            <i class="fa${ico.startsWith('fab')?'b':' fas'} fa-${ico.replace('fab ','').replace('fas ','')} " style="color:var(--primary);width:16px;text-align:center"></i>
-            <span class="font-medium text-sm">${name}</span>
-          </div>
-          <label class="flex items-center gap-2" style="cursor:pointer">
-            <input type="checkbox" id="an-${key}" ${project?.[key]?'checked':''} style="width:15px;height:15px;accent-color:var(--primary)">
-            <span class="text-sm text-secondary">Enable</span>
+        <!-- Reporting date -->
+        <div class="form-group">
+          <label class="form-label" style="font-size:.8rem">
+            <i class="fas fa-calendar-check" style="color:var(--primary)"></i> Reporting Date
           </label>
-        </div>`).join('')}
+          <input type="date" class="form-input" id="p-reporting" value="${project?.reportingDate||''}">
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group">
+          <label class="form-label" style="font-size:.8rem">
+            <i class="fas fa-sticky-note" style="color:var(--warn)"></i> Project Notes
+          </label>
+          <textarea class="form-input form-textarea" id="p-notes"
+            placeholder="Client requirements, project scope, important notes, goals…"
+            style="min-height:110px">${esc(project?.notes||'')}</textarea>
+        </div>
+      </div>
+
+      <!-- ══ TEAM TAB ═══════════════════════════════════ -->
+      <div id="mt-team" class="form-section" style="display:none">
+        <div class="form-group">
+          <label class="form-label" style="font-size:.8rem">Additional Team Members
+            <span style="font-weight:500;color:var(--text3);font-size:.75rem">(for project access)</span>
+          </label>
+          <div class="input-wrap" style="margin-bottom:8px">
+            <i class="fas fa-search input-ico"></i>
+            <input type="text" class="form-input has-ico" placeholder="Search team members…"
+              oninput="filterMemberList(this.value)">
+          </div>
+          <div id="member-list"
+            style="border:1.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+            ${STATE.users.map(u=>{
+              const checked = (project?.teamMembers||[]).includes(u.id);
+              return `<label class="member-row" data-name="${esc(u.name.toLowerCase())}" data-email="${esc(u.email.toLowerCase())}"
+                style="display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;
+                border-bottom:1px solid var(--border-light);background:${checked?'var(--bg)':'var(--surface)'};
+                transition:background .1s"
+                onmouseover="this.style.background='var(--bg)'"
+                onmouseout="this.style.background=this.querySelector('input').checked?'var(--bg)':'var(--surface)'">
+                <input type="checkbox" value="${u.id}" class="proj-member-cb"
+                  ${checked?'checked':''}
+                  style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0">
+                <div style="width:36px;height:36px;border-radius:50%;background:var(--grad-purple);
+                  display:flex;align-items:center;justify-content:center;color:white;
+                  font-size:.65rem;font-weight:700;flex-shrink:0">${getInitials(u.name)}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:.875rem;font-weight:600;color:var(--text)">${esc(u.name)}</div>
+                  <div style="font-size:.75rem;color:var(--text3)">${esc(u.email)}</div>
+                </div>
+                <span style="font-size:.7rem;font-weight:700;padding:3px 8px;border-radius:var(--r-full);
+                  background:${u.role==='super_admin'?'var(--primary-light)':u.role==='admin'?'#dbeafe':'var(--g100)'};
+                  color:${u.role==='super_admin'?'var(--primary)':u.role==='admin'?'#1e40af':'var(--g500)'}">
+                  ${formatRole(u.role)}
+                </span>
+              </label>`;
+            }).join('')||'<p style="padding:20px;text-align:center;color:var(--text3)">No users found</p>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ANALYTICS TAB ══════════════════════════════ -->
+      <div id="mt-analytics" class="form-section" style="display:none">
+        <div style="background:var(--bg);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:18px;
+          display:flex;align-items:center;gap:10px;font-size:.84rem;color:var(--text2)">
+          <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+          Enable the platforms being used for this project. Enabled services appear on the project analytics page.
+        </div>
+        ${[
+          ['hasAnalytics','Google Analytics','chart-line','#E97514','#fff3e0','analyticsUrl','Tracking ID (G-XXXXXXX)'],
+          ['hasSearchConsole','Search Console','search','#4285F4','#e8f0fe','searchConsoleUrl','Property URL'],
+          ['hasGoogleAds','Google Ads','fab fa-google','#1A73E8','#e8f0fe','googleAdsUrl','Ads Account ID'],
+          ['hasMetaAds','Meta Ads','fab fa-meta','#1877F2','#e7f0fd','metaAdsUrl','Ad Account ID'],
+          ['hasSemrush','SEMrush','chart-bar','#FF642D','#fff0eb','semrushUrl','Project URL'],
+          ['hasAhrefs','Ahrefs','link','#2F81F7','#e8f0fe','ahrefsUrl','Project URL'],
+        ].map(([key,name,ico,color,bg,urlKey,placeholder])=>{
+          const enabled = project?.[key];
+          const url = project?.[urlKey]||'';
+          return `<div class="analytics-service-card" id="card-${key}"
+            style="border:2px solid ${enabled?color:'var(--border)'};border-radius:var(--r-lg);
+            margin-bottom:10px;overflow:hidden;transition:border-color .2s">
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;
+              background:${enabled?bg:'var(--surface)'};transition:background .2s;cursor:pointer"
+              onclick="toggleAnalyticsCard('${key}','${color}','${bg}')">
+              <div style="width:38px;height:38px;border-radius:var(--r-md);
+                background:${enabled?color+'30':'var(--g100)'};
+                display:flex;align-items:center;justify-content:center;
+                font-size:.95rem;color:${enabled?color:'var(--text3)'}">
+                <i class="${ico.startsWith('fab')?ico:'fas fa-'+ico}"></i>
+              </div>
+              <div style="flex:1">
+                <div style="font-size:.88rem;font-weight:700;color:${enabled?color:'var(--text)'}">${name}</div>
+                <div style="font-size:.72rem;color:var(--text3);margin-top:1px">
+                  ${enabled?'Active — click to disable':'Click to enable'}
+                </div>
+              </div>
+              <div style="width:22px;height:22px;border-radius:50%;
+                border:2px solid ${enabled?color:'var(--border)'};
+                background:${enabled?color:'transparent'};
+                display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0">
+                ${enabled?'<i class="fas fa-check" style="font-size:.52rem;color:white"></i>':''}
+              </div>
+              <input type="checkbox" id="an-${key}" ${enabled?'checked':''} style="display:none">
+            </div>
+            <div class="analytics-url-field" style="display:${enabled?'block':'none'};
+              padding:10px 14px;border-top:1px solid ${color}30;background:${bg}">
+              <div class="input-wrap">
+                <i class="fas fa-link input-ico" style="color:${color}"></i>
+                <input type="text" class="form-input has-ico" id="${urlKey}"
+                  placeholder="${placeholder}"
+                  value="${esc(url)}"
+                  style="border-color:${color}50;font-size:.84rem;background:white">
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
 
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveProject(${projectId?`'${projectId}'`:'null'})">
-        <i class="fas fa-save"></i> ${isEdit?'Save Changes':'Create Project'}
+
+    <!-- FOOTER -->
+    <div class="modal-footer" style="padding:16px 26px">
+      <button class="btn btn-outline" onclick="closeModal()">
+        <i class="fas fa-times"></i> Cancel
+      </button>
+      <button class="btn btn-primary" onclick="saveProject(${projectId?`'${projectId}'`:'null'})"
+        style="padding:10px 24px;font-size:.9rem">
+        <i class="fas fa-${isEdit?'save':'rocket'}"></i> ${isEdit?'Save Changes':'Create Project'}
       </button>
     </div>
   </div>`);
 }
 
 function switchMTab(tab, btn) {
-  document.querySelectorAll('#m-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  // New tab styling
+  document.querySelectorAll('#m-tabs .m-tab-btn').forEach(b=>{
+    b.style.color = 'var(--text3)';
+    b.style.borderBottomColor = 'transparent';
+  });
+  btn.style.color = 'var(--primary)';
+  btn.style.borderBottomColor = 'var(--primary)';
   ['basic','dates','team','analytics'].forEach(t=>{
-    const el=document.getElementById(`mt-${t}`);
-    if(el) el.style.display = t===tab?'flex':'none';
+    const el = document.getElementById(`mt-${t}`);
+    if (el) el.style.display = t===tab ? 'flex' : 'none';
+  });
+}
+
+// Type pill selector
+function updateTypeBtn() {
+  const radios = document.querySelectorAll('.p-type-radio');
+  radios.forEach(r => {
+    const div  = r.closest('label').querySelector('.type-pill');
+    const val  = r.value;
+    const active = r.checked;
+    const color = div.dataset.color;
+    const bg    = div.dataset.bg;
+    div.style.borderColor  = active ? color : 'var(--border)';
+    div.style.background   = active ? bg    : 'var(--surface)';
+    div.querySelector('i').style.color  = active ? color : 'var(--text3)';
+    div.querySelector('span').style.color = active ? color : 'var(--text3)';
+    if (active) document.getElementById('p-type').value = val;
+  });
+}
+
+// Priority pill selector
+function updatePriorityBtn() {
+  const colors = { low:'#059669',medium:'#d97706',high:'#ea580c',critical:'#dc2626' };
+  const bgs    = { low:'#d1fae5',medium:'#fef3c7',high:'#ffedd5',critical:'#fee2e2' };
+  document.querySelectorAll('.p-priority-radio').forEach(r => {
+    const div = r.closest('label').querySelector('.priority-pill');
+    const active = r.checked;
+    const c = colors[r.value]; const b = bgs[r.value];
+    div.style.borderColor = active ? c : 'var(--border)';
+    div.style.background  = active ? b : 'var(--surface)';
+    div.style.color       = active ? c : 'var(--text3)';
+    if (active) document.getElementById('p-priority').value = r.value;
+  });
+}
+
+// Status visual selector
+function updateStatusBtn() {
+  const colors = { not_started:'#64748b',in_progress:'#1d4ed8',on_hold:'#b45309',completed:'#065f46' };
+  const bgs    = { not_started:'#f1f5f9',in_progress:'#dbeafe',on_hold:'#fef3c7',completed:'#d1fae5' };
+  document.querySelectorAll('[name="p-status-r"]').forEach(r => {
+    const div = r.closest('label').querySelector('div');
+    const active = r.checked;
+    const c = colors[r.value]; const b = bgs[r.value];
+    div.style.borderColor = active ? c : 'var(--border)';
+    div.style.background  = active ? b : 'var(--surface)';
+    div.querySelector('i').style.color  = active ? c : 'var(--text3)';
+    div.querySelector('div').style.color = active ? c : 'var(--text3)';
+    if (active) document.getElementById('p-status').value = r.value;
+  });
+}
+
+// Analytics service card toggle
+function toggleAnalyticsCard(key, color, bg) {
+  const cb   = document.getElementById(`an-${key}`);
+  const card = document.getElementById(`card-${key}`);
+  if (!cb || !card) return;
+  cb.checked = !cb.checked;
+  const enabled = cb.checked;
+  const header   = card.querySelector(':scope > div:first-child');
+  const urlField = card.querySelector('.analytics-url-field');
+  const checkEl  = header.querySelector(':scope > div:last-child');
+  card.style.borderColor     = enabled ? color : 'var(--border)';
+  header.style.background    = enabled ? bg    : 'var(--surface)';
+  header.querySelector('div:nth-child(2) > div:first-child').style.color = enabled ? color : 'var(--text)';
+  header.querySelector('div:nth-child(2) > div:last-child').textContent = enabled ? 'Active — click to disable' : 'Click to enable';
+  if (urlField) urlField.style.display = enabled ? 'block' : 'none';
+  checkEl.style.borderColor = enabled ? color : 'var(--border)';
+  checkEl.style.background  = enabled ? color : 'transparent';
+  checkEl.innerHTML = enabled ? '<i class="fas fa-check" style="font-size:.52rem;color:white"></i>' : '';
+}
+
+// Assignee list search filter
+function filterAssigneeList(q) {
+  document.querySelectorAll('#assignee-list .assignee-row').forEach(row => {
+    const match = !q || row.dataset.name.includes(q.toLowerCase()) || row.dataset.email.includes(q.toLowerCase());
+    row.style.display = match ? 'flex' : 'none';
+  });
+}
+
+// Team member list search filter
+function filterMemberList(q) {
+  document.querySelectorAll('#member-list .member-row').forEach(row => {
+    const match = !q || row.dataset.name.includes(q.toLowerCase()) || row.dataset.email.includes(q.toLowerCase());
+    row.style.display = match ? 'flex' : 'none';
   });
 }
 
@@ -817,7 +1137,15 @@ async function saveProject(projectId) {
   const assigneeIds = Array.from(document.querySelectorAll('.p-assignee-cb:checked')).map(e=>e.value);
   const anKeys = ['hasAnalytics','hasSearchConsole','hasGoogleAds','hasMetaAds','hasSemrush','hasAhrefs'];
   const analytics = {};
-  anKeys.forEach(k=>{ analytics[k]=document.getElementById(`an-${k}`)?.checked||false; });
+  anKeys.forEach(k => {
+    analytics[k] = document.getElementById(`an-${k}`)?.checked || false;
+  });
+  // Save analytics URL/ID fields
+  const urlKeys = ['analyticsUrl','searchConsoleUrl','googleAdsUrl','metaAdsUrl','semrushUrl','ahrefsUrl'];
+  urlKeys.forEach(k => {
+    const el = document.getElementById(k);
+    if (el) analytics[k] = el.value.trim() || null;
+  });
 
   const data = {
     name,
