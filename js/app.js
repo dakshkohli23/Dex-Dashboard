@@ -6,7 +6,7 @@
 let STATE = { user:null, userData:null, currentProject:null, view:'dashboard', users:[], projects:[] };
 
 /* ============================================================
-   INIT
+   INIT TheProcess
    ============================================================ */
 auth.onAuthStateChanged(async user => {
   if (!user) { window.location.href = 'index.html'; return; }
