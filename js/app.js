@@ -80,8 +80,48 @@ async function renderDashboard() {
   const [stats, projects, users] = await Promise.all([DB.getStats(), DB.getProjects(), DB.getUsers()]);
   STATE.projects  = projects;
   STATE.users     = users;
-  STATE.lastStats = stats;          // cache so toggle re-uses without refetch
+  STATE.lastStats = stats;
+  checkReportingNotifications(projects);   // check & fire browser notifications
   renderDashboardContent(stats, projects);
+}
+
+/* ─── Reporting helper ─────────────────────────────── */
+function isReportingToday(p) {
+  if (!p.reportingDate) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const base  = new Date(p.reportingDate); base.setHours(0,0,0,0);
+  if (isNaN(base)) return false;
+  const freq = p.reportingFrequency || 'none';
+  if (freq === 'none')      return today.getTime() === base.getTime();
+  if (today < base)         return false;
+  const diffDays = Math.round((today - base) / 86400000);
+  if (freq === 'weekly')    return diffDays % 7  === 0;
+  if (freq === 'biweekly')  return diffDays % 14 === 0;
+  if (freq === 'monthly')   return today.getDate() === base.getDate();
+  if (freq === 'quarterly') {
+    const mDiff = (today.getFullYear()-base.getFullYear())*12 + (today.getMonth()-base.getMonth());
+    return mDiff % 3 === 0 && today.getDate() === base.getDate();
+  }
+  return false;
+}
+
+/* ─── Browser notification for reporting dates ─────── */
+async function checkReportingNotifications(projects) {
+  const due = (projects || STATE.projects || []).filter(p => isReportingToday(p));
+  if (!due.length) return;
+  // Request permission once
+  if ('Notification' in window && Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+  if ('Notification' in window && Notification.permission === 'granted') {
+    due.forEach(p => {
+      new Notification('📊 Report Due Today', {
+        body: `${p.name}${p.clientName ? ' · ' + p.clientName : ''} — reporting due today`,
+        icon: '/favicon.ico',
+        tag:  'report-' + p.id,
+      });
+    });
+  }
 }
 
 function renderDashboardContent(stats, projects) {
@@ -89,20 +129,31 @@ function renderDashboardContent(stats, projects) {
   stats = STATE.lastStats || { total:0, notStarted:0, inProgress:0, onHold:0, completed:0, seo:0, googleAds:0, metaAds:0 };
   if (!projects || !projects.length) projects = STATE.projects || [];
 
-  // Split projects into two groups
-  const liveProjects   = projects.filter(p => p.status === 'in_progress' || p.status === 'not_started');
-  const pausedProjects = projects.filter(p => p.status === 'on_hold' || p.status === 'completed');
+  // Apply user filter
+  const uid = STATE.dashUserFilter || '';
+  let filteredProjects = projects;
+  if (uid) {
+    filteredProjects = projects.filter(p =>
+      (p.assigneeIds||[]).includes(uid) || p.ownerId === uid
+    );
+  }
+
+  const liveProjects   = filteredProjects.filter(p => p.status === 'in_progress' || p.status === 'not_started');
+  const pausedProjects = filteredProjects.filter(p => p.status === 'on_hold' || p.status === 'completed');
+
+  // Reporting due today
+  const reportingDue = projects.filter(p => isReportingToday(p));
+
+  const tableHeader = `<thead><tr>
+    <th style="width:64px;text-align:center">Active</th>
+    <th>Project</th><th>Type</th><th>Priority</th>
+    <th>Assigned To</th><th>Location</th><th>Keywords</th><th>Reporting Date</th>
+    <th></th>
+  </tr></thead>`;
 
   const projTableHTML = (list) => list.length
-    ? `<div class="table-wrap"><table class="data-table">
-        <thead><tr>
-          <th style="width:64px;text-align:center">Active</th>
-          <th>Project</th><th>Type</th><th>Priority</th>
-          <th>Assigned To</th><th>Location</th><th>Keywords</th><th>Reporting Date</th>
-          <th></th>
-        </tr></thead>
-        <tbody>${list.map(p => projRow(p)).join('')}</tbody>
-      </table></div>`
+    ? `<div class="table-wrap"><table class="data-table">${tableHeader}
+        <tbody>${list.map(p => projRow(p)).join('')}</tbody></table></div>`
     : `<div style="padding:28px;text-align:center;color:var(--text3);font-size:.875rem">
         <i class="fas fa-inbox" style="font-size:1.5rem;margin-bottom:8px;display:block"></i>
         No projects in this category
@@ -112,6 +163,56 @@ function renderDashboardContent(stats, projects) {
     `<span style="background:${bg};color:${color};padding:3px 10px;border-radius:var(--r-full);
       font-size:.72rem;font-weight:700;margin-left:8px">${count}</span>`;
 
+  // User filter options
+  const userFilterOpts = `<option value="">All Team Members</option>
+    ${STATE.users.map(u => `<option value="${u.id}" ${uid===u.id?'selected':''}>${esc(u.name)}</option>`).join('')}`;
+
+  // Notice board HTML
+  const noticeBoardHTML = reportingDue.length ? `
+    <div class="notice-board mb-5">
+      <div class="notice-board-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="notice-bell"><i class="fas fa-bell"></i></div>
+          <div>
+            <div style="font-weight:700;font-size:.95rem;color:#7c3aed">📊 Reports Due Today</div>
+            <div style="font-size:.75rem;color:#8b5cf6;margin-top:1px">
+              ${reportingDue.length} project${reportingDue.length>1?'s':''} need${reportingDue.length===1?'s':''} a report today
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-sm" style="background:#ede9fe;color:#7c3aed;border:none;font-weight:600"
+          onclick="this.closest('.notice-board').style.display='none'">
+          <i class="fas fa-times"></i> Dismiss
+        </button>
+      </div>
+      <div class="notice-items">
+        ${reportingDue.map(p => {
+          const assignees = (p.assigneeIds||[p.ownerId]).filter(Boolean)
+            .map(id => STATE.users.find(u=>u.id===id)).filter(Boolean);
+          const freq = p.reportingFrequency || 'none';
+          const freqLabel = {none:'One-time',weekly:'Weekly',biweekly:'Bi-Weekly',monthly:'Monthly',quarterly:'Quarterly'}[freq]||'';
+          return `<div class="notice-item" onclick="navigate('project/${p.id}')" style="cursor:pointer">
+            <div class="notice-item-dot" style="background:${typeColor(p.type)}"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:.88rem;color:var(--text)">${esc(p.name)}</div>
+              <div style="font-size:.75rem;color:var(--text3);margin-top:2px">
+                ${p.clientName?`<span><i class="fas fa-building"></i> ${esc(p.clientName)}</span> · `:''}
+                <span class="badge no-dot ${typeBadge(p.type)}" style="font-size:.65rem">${typeLabel(p.type)}</span>
+                ${freqLabel ? `<span style="margin-left:6px;background:#ede9fe;color:#7c3aed;padding:2px 7px;border-radius:var(--r-full);font-size:.65rem;font-weight:700">${freqLabel}</span>` : ''}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:-4px">
+              ${assignees.slice(0,3).map(u=>`<div style="width:26px;height:26px;border-radius:50%;background:var(--grad-purple);
+                border:2px solid white;display:flex;align-items:center;justify-content:center;
+                color:white;font-size:.55rem;font-weight:700;margin-left:-5px;flex-shrink:0"
+                title="${esc(u.name)}">${getInitials(u.name)}</div>`).join('')}
+            </div>
+            <i class="fas fa-chevron-right" style="color:var(--text3);font-size:.78rem;margin-left:8px"></i>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
   html('content-area', `
     <div class="page-header">
       <div><h1 class="page-title">Dashboard</h1><p class="page-subtitle">Project overview &amp; quick stats</p></div>
@@ -119,6 +220,8 @@ function renderDashboardContent(stats, projects) {
         <button class="btn btn-primary" onclick="openProjectModal()"><i class="fas fa-plus"></i> New Project</button>
       </div>
     </div>
+
+    ${noticeBoardHTML}
 
     <div class="stats-grid">
       ${gradSc('folder','Total Projects', stats.total||0,'grad-purple')}
@@ -133,34 +236,67 @@ function renderDashboardContent(stats, projects) {
       ${tcNew('fab fa-meta','Meta Ads',stats.metaAds||0,'projects/meta_ads','#1877f2','#e7f0fd')}
     </div>
 
-    <!-- SECTION 1: LIVE PROJECTS -->
+    <!-- USER FILTER BAR -->
+    <div class="dash-filter-row mb-3">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;background:var(--surface);
+          border:1.5px solid var(--border);border-radius:var(--r-md);padding:6px 12px">
+          <i class="fas fa-user-filter" style="color:var(--text3);font-size:.82rem"></i>
+          <select style="border:none;background:transparent;font-family:var(--font);
+            font-size:.875rem;color:var(--text);font-weight:500;outline:none;cursor:pointer"
+            onchange="setDashUserFilter(this.value)">
+            ${userFilterOpts}
+          </select>
+        </div>
+        ${uid ? `<button class="btn btn-sm btn-outline" onclick="setDashUserFilter('')">
+          <i class="fas fa-times"></i> Clear Filter
+        </button>
+        <span style="font-size:.8rem;color:var(--primary);font-weight:600">
+          Showing ${filteredProjects.length} project${filteredProjects.length!==1?'s':''} for ${esc(STATE.users.find(u=>u.id===uid)?.name||'')}
+        </span>` : ''}
+        ${reportingDue.length ? `<div style="margin-left:auto;display:flex;align-items:center;gap:6px;
+          background:#ede9fe;padding:6px 14px;border-radius:var(--r-full);cursor:pointer"
+          onclick="document.querySelector('.notice-board')?.scrollIntoView({behavior:'smooth'})">
+          <span style="width:8px;height:8px;border-radius:50%;background:#7c3aed;
+            box-shadow:0 0 0 2px rgba(124,58,237,.25);display:inline-block;animation:pulse 1.5s infinite"></span>
+          <span style="font-size:.8rem;font-weight:700;color:#7c3aed">
+            ${reportingDue.length} report${reportingDue.length>1?'s':''} due today
+          </span>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <!-- LIVE PROJECTS -->
     <div class="section-card mb-4" style="margin-top:8px">
       <div class="section-header">
         <span class="section-title" style="display:flex;align-items:center">
           <span style="width:9px;height:9px;border-radius:50%;background:#10b981;
             display:inline-block;margin-right:9px;
             box-shadow:0 0 0 3px rgba(16,185,129,.18)"></span>
-          Live Projects
-          ${sectionBadge(liveProjects.length,'#059669','#d1fae5')}
+          Live Projects ${sectionBadge(liveProjects.length,'#059669','#d1fae5')}
         </span>
         <a class="section-link" onclick="navigate('projects')">View All <i class="fas fa-arrow-right"></i></a>
       </div>
       ${projTableHTML(liveProjects)}
     </div>
 
-    <!-- SECTION 2: PAUSED / STOPPED / ENDED -->
+    <!-- PAUSED / STOPPED / ENDED -->
     <div class="section-card mb-2" style="margin-top:24px">
       <div class="section-header">
         <span class="section-title" style="display:flex;align-items:center">
           <span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;
             display:inline-block;margin-right:9px"></span>
-          Paused, Stopped &amp; Ended
-          ${sectionBadge(pausedProjects.length,'#92400e','#fef3c7')}
+          Paused, Stopped &amp; Ended ${sectionBadge(pausedProjects.length,'#92400e','#fef3c7')}
         </span>
       </div>
       ${projTableHTML(pausedProjects)}
     </div>
   `);
+}
+
+function setDashUserFilter(uid) {
+  STATE.dashUserFilter = uid;
+  renderDashboardContent(STATE.lastStats, STATE.projects);
 }
 
 /* ============================================================
@@ -194,6 +330,10 @@ async function renderProjects(filter) {
         <option value="low">Low</option><option value="medium">Medium</option>
         <option value="high">High</option><option value="critical">Critical</option>
       </select>
+      <select class="filter-select" id="f-user" onchange="applyFilters()">
+        <option value="">All Members</option>
+        ${STATE.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}
+      </select>
       <input class="filter-input" id="f-search" placeholder="Search projects…" oninput="applyFilters()">
       <div class="view-toggle">
         <button class="view-btn active" id="vb-grid" onclick="setView('grid',this)"><i class="fas fa-th-large"></i></button>
@@ -208,11 +348,18 @@ async function renderProjects(filter) {
 function applyFilters() {
   const status   = val('f-status');
   const priority = val('f-priority');
+  const userId   = val('f-user');
   const search   = (val('f-search')||'').toLowerCase();
   let list = STATE.projects;
-  if (status)   list = list.filter(p=>p.status===status);
-  if (priority) list = list.filter(p=>p.priority===priority);
-  if (search)   list = list.filter(p=>(p.name||'').toLowerCase().includes(search)||(p.description||'').toLowerCase().includes(search));
+  if (status)   list = list.filter(p => p.status === status);
+  if (priority) list = list.filter(p => p.priority === priority);
+  if (userId)   list = list.filter(p => (p.assigneeIds||[]).includes(userId) || p.ownerId === userId);
+  if (search)   list = list.filter(p =>
+    (p.name||'').toLowerCase().includes(search) ||
+    (p.description||'').toLowerCase().includes(search) ||
+    (p.clientName||'').toLowerCase().includes(search) ||
+    (p.projectLocation||'').toLowerCase().includes(search)
+  );
   const c = document.getElementById('proj-container');
   if (!c) return;
   if (!list.length) { c.innerHTML = emptyState('search','No results','Adjust your filters'); return; }
@@ -898,12 +1045,37 @@ async function openProjectModal(projectId, preType) {
           </div>
         </div>
 
-        <!-- Reporting date -->
-        <div class="form-group">
-          <label class="form-label" style="font-size:.8rem">
-            <i class="fas fa-calendar-check" style="color:var(--primary)"></i> Reporting Date
-          </label>
-          <input type="date" class="form-input" id="p-reporting" value="${project?.reportingDate||''}">
+        <!-- Reporting date + frequency -->
+        <div style="background:var(--bg);border-radius:var(--r-lg);padding:16px 18px">
+          <div style="font-size:.8rem;font-weight:700;color:var(--text2);margin-bottom:14px;
+            text-transform:uppercase;letter-spacing:.5px">
+            <i class="fas fa-calendar-check" style="color:var(--primary);margin-right:6px"></i>Reporting Schedule
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" style="font-size:.75rem">Reporting Date</label>
+              <input type="date" class="form-input" id="p-reporting"
+                value="${project?.reportingDate||''}">
+              <span class="form-hint">First report date or one-time date</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size:.75rem">Repeat Frequency</label>
+              <select class="form-input form-select" id="p-freq">
+                ${[
+                  ['none','One-time only'],
+                  ['weekly','Every Week'],
+                  ['biweekly','Every 2 Weeks'],
+                  ['monthly','Every Month (same date)'],
+                  ['quarterly','Every Quarter'],
+                ].map(([v,l])=>`<option value="${v}" ${(project?.reportingFrequency||'none')===v?'selected':''}>${l}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:9px 12px;background:white;border-radius:var(--r-md);
+            border:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text2)">
+            <i class="fas fa-bell" style="color:#7c3aed"></i>
+            <span>Team members assigned to the project will receive a browser notification on each reporting date.</span>
+          </div>
         </div>
 
         <!-- Notes -->
@@ -1152,7 +1324,8 @@ async function saveProject(projectId) {
     clientName:      val('p-client')    || null,
     targetKeywords:  val('p-keywords')  || null,
     projectLocation: val('p-location')  || null,
-    reportingDate:   val('p-reporting') || null,
+    reportingDate:      val('p-reporting')  || null,
+    reportingFrequency: val('p-freq')       || 'none',
     description:     val('p-desc')      || null,
     type:            val('p-type')      || 'general',
     priority:        val('p-priority')  || 'medium',
