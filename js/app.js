@@ -6,7 +6,7 @@
 let STATE = { user:null, userData:null, currentProject:null, view:'dashboard', users:[], projects:[] };
 
 /* ============================================================
-   INIT TheProcess
+   INIT
    ============================================================ */
 auth.onAuthStateChanged(async user => {
   if (!user) { window.location.href = 'index.html'; return; }
@@ -957,29 +957,29 @@ async function openProjectModal(projectId, preType) {
             max-height:180px;overflow-y:auto;background:var(--surface)">
             ${STATE.users.map(u=>{
               const checked = (project?.assigneeIds||[]).includes(u.id) || project?.ownerId===u.id;
-              return `<label class="assignee-row ${checked?'assignee-checked':''}" data-name="${esc(u.name.toLowerCase())}" data-email="${esc(u.email.toLowerCase())}"
-                style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;
-                border-bottom:1px solid var(--border-light);transition:background .1s;
-                background:${checked?'var(--primary-light)':'transparent'}"
-                onmouseover="if(!this.querySelector('input').checked)this.style.background='var(--bg)'"
-                onmouseout="if(!this.querySelector('input').checked)this.style.background='transparent'">
-                <input type="checkbox" value="${u.id}" class="p-assignee-cb"
-                  ${checked?'checked':''}
-                  style="display:none"
-                  onchange="this.closest('label').style.background=this.checked?'var(--primary-light)':'transparent'">
-                <div style="width:32px;height:32px;border-radius:50%;background:var(--grad-purple);
+              const uid = u.id;
+              return `<div class="assignee-row" data-name="${esc(u.name.toLowerCase())}" data-email="${esc(u.email.toLowerCase())}"
+                id="arow-${uid}"
+                onclick="toggleAssigneeRow('${uid}')"
+                style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;
+                border-bottom:1px solid var(--border-light);transition:background .15s;
+                background:${checked?'var(--primary-light)':'var(--surface)'}">
+                <input type="checkbox" value="${uid}" class="p-assignee-cb" id="acb-${uid}"
+                  ${checked?'checked':''} style="display:none">
+                <div style="width:34px;height:34px;border-radius:50%;background:var(--grad-purple);
                   display:flex;align-items:center;justify-content:center;color:white;
-                  font-size:.62rem;font-weight:700;flex-shrink:0">${getInitials(u.name)}</div>
+                  font-size:.64rem;font-weight:700;flex-shrink:0">${getInitials(u.name)}</div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:.84rem;font-weight:600;color:var(--text)">${esc(u.name)}</div>
-                  <div style="font-size:.72rem;color:var(--text3)">${esc(u.email)}</div>
+                  <div style="font-size:.875rem;font-weight:600;color:var(--text)">${esc(u.name)}</div>
+                  <div style="font-size:.73rem;color:var(--text3)">${esc(u.email)}</div>
                 </div>
-                <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${checked?'var(--primary)':'var(--border)'};
+                <div id="acheck-${uid}" style="width:22px;height:22px;border-radius:50%;
+                  border:2px solid ${checked?'var(--primary)':'var(--border)'};
                   display:flex;align-items:center;justify-content:center;flex-shrink:0;
                   background:${checked?'var(--primary)':'transparent'};transition:all .15s">
-                  ${checked?'<i class="fas fa-check" style="font-size:.5rem;color:white"></i>':''}
+                  ${checked?'<i class="fas fa-check" style="font-size:.52rem;color:white"></i>':''}
                 </div>
-              </label>`;
+              </div>`;
             }).join('')||'<p style="padding:16px;text-align:center;color:var(--text3);font-size:.84rem">No users found</p>'}
           </div>
         </div>
@@ -1291,6 +1291,31 @@ function filterAssigneeList(q) {
     const match = !q || row.dataset.name.includes(q.toLowerCase()) || row.dataset.email.includes(q.toLowerCase());
     row.style.display = match ? 'flex' : 'none';
   });
+}
+
+// Toggle assignee row selection — updates checkbox + all visual states
+function toggleAssigneeRow(uid) {
+  const cb    = document.getElementById('acb-' + uid);
+  const row   = document.getElementById('arow-' + uid);
+  const check = document.getElementById('acheck-' + uid);
+  if (!cb || !row || !check) return;
+
+  cb.checked = !cb.checked;
+  const isChecked = cb.checked;
+
+  // Update row background
+  row.style.background = isChecked ? 'var(--primary-light)' : 'var(--surface)';
+
+  // Update circle indicator
+  check.style.borderColor = isChecked ? 'var(--primary)' : 'var(--border)';
+  check.style.background  = isChecked ? 'var(--primary)' : 'transparent';
+  check.innerHTML = isChecked ? '<i class="fas fa-check" style="font-size:.52rem;color:white"></i>' : '';
+
+  // Update the "X selected" label count
+  const total = document.querySelectorAll('.p-assignee-cb:checked').length;
+  const lbl = document.querySelector('label[for] span[style*="color:var(--primary)"]') ||
+              document.querySelector('.form-label span[style*="primary"]');
+  if (lbl) lbl.textContent = total > 0 ? total + ' selected' : 'Select team members';
 }
 
 // Team member list search filter
